@@ -380,7 +380,7 @@ def generate_html_report(data):
         s1 = 1
 
     if s1 != 0:
-        station_warning += '站点水位已超警！'
+        station_warning += '站点水位已超警！\n'
 
     s2 = 0
     if float(latest_wuzhou_data) >= 13 and float(latest_wuzhou_data) < 18.5:
@@ -394,7 +394,7 @@ def generate_html_report(data):
         station_warning += '江口（水位已超过26米）'
 
     if s2 != 0:
-        station_warning += '水位较高，注意警戒！'
+        station_warning += '水位较高，注意警戒！\n'
 
     #站点是否需要水位快速上涨警告
     s3 = 0
@@ -439,7 +439,7 @@ def generate_html_report(data):
         s3 = 1
 
     if s3 != 0:
-        station_warning += '水位快速上涨（日涨幅超2米）！'
+        station_warning += '水位快速上涨（日涨幅超2米）！\n'
 
     #梧州是否需要水位过低警告
     if float(latest_wuzhou_data) < 4:
@@ -495,31 +495,51 @@ def generate_html_report(data):
             reservoir_warning += 'm³/秒，较大)'
         r2 = 1
     if r2 != 0:
-        reservoir_warning += '出库流量更大，可能正在放水，对下游水位会有额外影响。'
+        reservoir_warning += '出库流量更大，可能正在放水，对下游水位会有额外影响。\n'
 
-     #水库是否需要水位警告符号
-    r1 = 0
-    if float(latest_datengxia_data) >= 60:
+    #水库是否需要水位超过正常水位警告
+    r3 = 0
+    if float(latest_datengxia_data) >= 61:
         latest_datengxia_wSymbol += '🚨'
+        reservoir_warning += '大藤峡枢纽'
+        r3 = 1
+    if float(latest_guiping_data) >= 31.5:
+        latest_guiping_wSymbol += '🚨'
+        if r3 != 0:
+            reservoir_warning += '、'
+        reservoir_warning += '桂平枢纽'
+        r3 = 1
+    if float(latest_changzhou_data) >= 20.6:
+        latest_changzhou_wSymbol += '🚨'
+        if r3 != 0:
+            reservoir_warning += '、'
+        reservoir_warning += '长洲枢纽'
+        r3 = 1
+    if r3 != 0:
+        reservoir_warning += '水位超过正常蓄水位，可能进行泄洪放水！\n'
+     #水库是否需要水位高警告符号
+    r1 = 0
+    if float(latest_datengxia_data) >= 60 and float(latest_datengxia_data) < 61:
+        latest_datengxia_wSymbol += '⚠️'
         reservoir_warning += '大藤峡枢纽'
         latest_datengxia_color = 'red'
         r1 = 1
-    if float(latest_guiping_data) >= 31:
-        latest_guiping_wSymbol += '🚨'
+    if float(latest_guiping_data) >= 31 and float(latest_guiping_data) < 31.5:
+        latest_guiping_wSymbol += '⚠️'
         if r1 != 0:
             reservoir_warning += '、'
         reservoir_warning += '桂平枢纽'
         latest_guiping_color = 'red'
         r1 = 1
-    if float(latest_changzhou_data) >= 28:
-        latest_changzhou_wSymbol += '🚨'
+    if float(latest_changzhou_data) >= 19 and float(latest_changzhou_data) < 20.6:
+        latest_changzhou_wSymbol += '⚠️'
         if r1 != 0:
             reservoir_warning += '、'
         reservoir_warning += '长洲枢纽'
         latest_changzhou_color = 'red'
         r1 = 1
     if r1 != 0:
-        reservoir_warning += '水位高，可能开闸放水！'
+        reservoir_warning += '接近正常蓄水位，请留意开闸放水信息！\n'
 
     if latest_datengxia_wSymbol == ' ':
         latest_datengxia_wSymbol += '正常'
@@ -557,7 +577,7 @@ def generate_html_report(data):
             <div class="status-item">
                 <span class="status-label">近2天梧州水位预报：</span>
                 <span class="status-value status-{latest_wuzhou_pColor}">
-                    {latest_wuzhou_p1}m~{latest_wuzhou_p2}m 预计水位{latest_wuzhou_pDesc}{latest_wuzhou_pDirection}{latest_wuzhou_pSymbol}  
+                    {latest_wuzhou_p1}m~{latest_wuzhou_p2}m      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;   预计水位{latest_wuzhou_pDesc}{latest_wuzhou_pDirection}{latest_wuzhou_pSymbol}  
                 </span>
             </div>
         </div>
