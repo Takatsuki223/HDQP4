@@ -375,7 +375,7 @@ def generate_html_report(data):
         station_warning += '米）'
         s1 = 1
 
-    if float(latest_guigang_data) >= 44:  #不清楚具体超警戒线
+    if float(latest_guigang_data) >= 44:  #不清楚具体超警戒线    横县警戒线54.2米    贵港坝下警戒线是41.2米
         latest_guigang_wSymbol = '🚨'
         if s1 != 0:
             station_warning += '、'
@@ -562,7 +562,7 @@ def generate_html_report(data):
 
     #水库是否需要水位超过正常水位警告
     r3 = 0
-    if float(latest_datengxia_data) > 61:
+    if float(latest_datengxia_data) > 61:          #大藤峡61正常蓄水位
         latest_datengxia_wSymbol += '🚨'
         reservoir_warning += '<br> &nbsp;'
         reservoir_warning += '大藤峡枢纽（已超'
@@ -570,7 +570,7 @@ def generate_html_report(data):
         resevoir_warning += '米）'
         latest_datengxia_color = 'red'
         r3 = 1
-    if float(latest_guiping_data) > 43.1:
+    if float(latest_guiping_data) > 43.1:          #贵港43.1正常蓄水位    西津正常蓄水位取62米
         latest_guiping_wSymbol += '🚨'
         if r3 != 0:
             reservoir_warning += '、'
@@ -581,7 +581,7 @@ def generate_html_report(data):
         reservoir_warning += '米）'
         latest_guiping_color = 'red'
         r3 = 1
-    if float(latest_changzhou_data) > 20.6:
+    if float(latest_changzhou_data) > 20.6:          #长洲20.6正常蓄水位
         latest_changzhou_wSymbol += '🚨'
         if r3 != 0:
             reservoir_warning += '、'
