@@ -1063,6 +1063,8 @@ def main():
     # 获取今天的日期字符串，格式如 "20261012"
     today_str = datetime.now().strftime('%Y%m%d')
 
+    #today_str = "20261017"  # 测试用
+
     # 筛选标题中包含今天日期的链接
     filtered_items = []
     for item in news_items:
