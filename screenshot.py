@@ -253,19 +253,19 @@ def generate_html_report(data):
         latest_hx_data = sorted_data[-1].get('站点数据',{}).get('横县', {}).get('水位', '0')
         latest_hx_change = sorted_data[-1].get('站点数据',{}).get('横县', {}).get('变化值', '0')
 
-        latest_datengxia_data = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('上游水位', '59.568')
+        latest_datengxia_data = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('上游水位', '0')
         latest_datengxia_fs = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('是否放水', '0')
-        latest_datengxia_rkll = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('入库流量', '-')
-        latest_datengxia_ckll = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('出库流量', '577')
+        latest_datengxia_rkll = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('入库流量', '0')
+        latest_datengxia_ckll = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('出库流量', '0')
 
-        latest_gg_data = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('上游水位', '43.01')
+        latest_gg_data = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('上游水位', '0')
         latest_gg_fs = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('是否放水', '0')
-        latest_gg_rkll = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('入库流量', '-')
-        latest_gg_ckll = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('出库流量', '365')
+        latest_gg_rkll = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('入库流量', '0')
+        latest_gg_ckll = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('出库流量', '0')
 
         latest_changzhou_data = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('上游水位', '0')
         latest_changzhou_fs = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('是否放水', '0')
-        latest_changzhou_rkll = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('入库流量', '-')
+        latest_changzhou_rkll = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('入库流量', '0')
         latest_changzhou_ckll = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('出库流量', '0')
 
     latest_upstream_change_value = ''
@@ -395,7 +395,7 @@ def generate_html_report(data):
         station_warning += '米）'
         s1 = 1
 
-    if float(latest_luancheng_data) >= 64.2:
+    if float(latest_luancheng_data) >= 64.2:     #官方记载64.2米
         latest_luancheng_wSymbol = '🚨'
         if s1 != 0:
             station_warning += '、'
@@ -406,7 +406,7 @@ def generate_html_report(data):
         station_warning += '米）'
         s1 = 1
 
-    if float(latest_wuxuan_data) >= 61.4:
+    if float(latest_wuxuan_data) >= 61.4:  # 查出来是62
         latest_wuxuan_wSymbol = '🚨'
         if s1 != 0:
             station_warning += '、'
@@ -417,7 +417,7 @@ def generate_html_report(data):
         station_warning += '米）'
         s1 = 1
 
-    if float(latest_laibing_data) >= 62:  #不清楚具体超警戒线   合山警戒线可给85米
+    if float(latest_laibing_data) >= 62:  #查出来是76.5
         latest_laibing_wSymbol = '🚨'
         if s1 != 0:
             station_warning += '、'
@@ -787,13 +787,13 @@ def generate_html_report(data):
             <div class="image-overlay-text" style="position: absolute; top: 39%; left: 79%;font-size: 180%;writing-mode: vertical-rl;text-orientation: mixed;justify-content: center;align-items: center;display: flex; height: 20%;color:blue">{latest_changzhou_wSymbol}</div>
             <div class="image-overlay-text status-{latest_datengxia_color}" style="position: absolute;top: -0.5%;left: 53.8%;font-size: 180%;">{latest_datengxia_data}m</div>
             <div class="image-overlay-text status-{latest_datengxia_color}" style="position: absolute;top: 19%;left: 62%;font-size: 100%;">入库流量: {latest_datengxia_rkll}m³</div>
-            <div class="image-overlay-text status-{latest_datengxia_color}" style="position: absolute;top: 39%;left: 51%;font-size: 100%;">出库流量：{latest_datengxia_ckll}m³</div>
+            <div class="image-overlay-text status-{latest_datengxia_color}" style="position: absolute;top: 39%;left: 51%;font-size: 100%;">出库流量: {latest_datengxia_ckll}m³</div>
             <div class="image-overlay-text status-{latest_gg_color}" style="position: absolute;top: 88%;left: 56%;font-size: 180%;">{latest_gg_data}m</div>
-            <div class="image-overlay-text status-{latest_gg_color}" style="position: absolute;top: 80%;left: 66.5%;font-size: 100%;">入库流量：{latest_gg_rkll}m³</div>
-            <div class="image-overlay-text status-{latest_gg_color}" style="position: absolute;top: 85%;left: 66.5%;font-size: 100%;">出库流量: {latest_gg_ckll}m³</div>
+            <div class="image-overlay-text status-{latest_gg_color}" style="position: absolute;top: 80%;left: 66.5%;font-size: 100%;">入库流量: {latest_gg_rkll}m³</div>
+            <div class="image-overlay-text status-{latest_gg_color}" style="position: absolute;top: 86%;left: 66.5%;font-size: 100%;">出库流量: {latest_gg_ckll}m³</div>
             <div class="image-overlay-text status-{latest_changzhou_color}" style="position: absolute;top: 3%;left: 79%;font-size: 180%;">{latest_changzhou_data}m</div>
-            <div class="image-overlay-text status-{latest_changzhou_color}" style="position: absolute;top: 12%;left: 86.5%;font-size: 100%;">入库流量：{latest_changzhou_rkll}m³</div>
-            <div class="image-overlay-text status-{latest_changzhou_color}" style="position: absolute;top: 18%;left: 86.5%;font-size: 100%;">出库流量：{latest_changzhou_ckll}m³</div>
+            <div class="image-overlay-text status-{latest_changzhou_color}" style="position: absolute;top: 12.5%;left: 86.5%;font-size: 100%;">入库流量: {latest_changzhou_rkll}m³</div>
+            <div class="image-overlay-text status-{latest_changzhou_color}" style="position: absolute;top: 18%;left: 86.5%;font-size: 100%;">出库流量: {latest_changzhou_ckll}m³</div>
             <img src="river.jpg" alt="西江流域图">
         </div>
         <div class="cc">
@@ -802,36 +802,7 @@ def generate_html_report(data):
                 <span class="c{latest_wuzhou_desc}c">&nbsp;&nbsp;{wzS}梧州</span><span class="c{latest_mengjiang_desc}c">{mjS}濛江</span><span class="c{latest_hx_desc}c">{hxS}横县</span><span class="c{latest_luancheng_desc}c">{lcS}峦城</span><span class="c{latest_wuxuan_desc}c">{wxS}武宣</span><span class="c{latest_laibing_desc}c">{lbS}来宾</span><span class="c{latest_changzhou_rkll}c">{czS}长洲枢纽</span><span class="c{latest_datengxia_rkll}c">{dtxS}大藤峡枢纽</span><span class="c{latest_gg_rkll}c">{ggS}贵港枢纽&nbsp;&nbsp;</span>
             </div>
         </div>
-        <div class="table-section">
-            <h2>历史数据总表</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>时间</th>
-                        <th>梧州</th>
-                        <th>濛江</th>
-                        <th>横县</th>
-                        <th>武宣</th>
-                        <th>来宾</th>
-                        <th>峦城</th>
-                    </tr>
-                </thead>
-                <tbody>
-"""
 
-    # 添加表格数据
-    for record in sorted_data:
-        station_data = record.get('站点数据', {})
-        html_content += f"""
-                    <tr>
-                        <td>{record['时间']}</td>
-                        <td>{station_data.get('梧州', {}).get('水位', '-')} {station_data.get('梧州', {}).get('情况', ' ')} ({station_data.get('梧州', {}).get('变化值', '-')})</td>
-                        <td>{station_data.get('濛江', {}).get('水位', '-')} {station_data.get('濛江', {}).get('情况', ' ')} ({station_data.get('濛江', {}).get('变化值', '-')})</td>
-                        <td>{station_data.get('横县', {}).get('水位', '-')} {station_data.get('横县', {}).get('情况', ' ')} ({station_data.get('横县', {}).get('变化值', '-')})</td>
-                        <td>{station_data.get('武宣', {}).get('水位', '-')} {station_data.get('武宣', {}).get('情况', ' ')} ({station_data.get('武宣', {}).get('变化值', '-')})</td>
-                        <td>{station_data.get('来宾', {}).get('水位', '-')} {station_data.get('来宾', {}).get('情况', ' ')} ({station_data.get('来宾', {}).get('变化值', '-')})</td>
-                        <td>{station_data.get('峦城', {}).get('水位', '-')} {station_data.get('峦城', {}).get('情况', ' ')} ({station_data.get('峦城', {}).get('变化值', '-')})</td>
-                    </tr>
 """
 
     # 准备图表数据 - 只显示最新的14条记录
@@ -870,13 +841,9 @@ def generate_html_report(data):
                 }}""")
 
     html_content += f"""
-                </tbody>
-            </table>
-        </div>
 
         <div class="timestamp">
-            报告生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}<br>
-            数据记录数: {len(data)} 条
+            报告生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         </div>
     </div>
 
@@ -1053,17 +1020,29 @@ def parse_ocr_reservoir_data(ocr_json_str, publish_date):
             # 只处理包含通航建筑物流量信息表的表格内容
             if '通航建筑物' in content and '<table' in content:
                 soup = BeautifulSoup(content, 'html.parser')
+                # 查找表格中的所有行
                 rows = soup.find_all('tr')
-                for row in rows[1:]:  # 跳过表头
-                    cells = row.find_all('td')
+                
+                # 遍历每一行，提取数据
+                for row in rows:
+                    # 获取所有单元格（td 和 th），处理 colspan 属性
+                    cells = []
+                    for cell in row.find_all(['td', 'th']):
+                        cell_text = cell.get_text(strip=True)
+                        # 处理 colspan 属性，将单元格内容重复多次
+                        colspan = int(cell.get('colspan', 1))
+                        for _ in range(colspan):
+                            cells.append(cell_text)
+                    
+                    # 需要至少 6 个单元格才能提取数据
                     if len(cells) >= 6:
-                        reservoir_name = cells[0].get_text(strip=True)
+                        reservoir_name = cells[0]
                         if reservoir_name in target_reservoirs:
-                            observation_time = cells[1].get_text(strip=True)
-                            upstream_level = cells[2].get_text(strip=True)
-                            downstream_level = cells[3].get_text(strip=True)
-                            inflow = cells[4].get_text(strip=True)
-                            outflow = cells[5].get_text(strip=True)
+                            observation_time = cells[1]
+                            upstream_level = cells[2]
+                            downstream_level = cells[3]
+                            inflow = cells[4]
+                            outflow = cells[5]
 
                             # 计算是否放水：出库流量 >= 入库流量则为1，否则为0
                             try:
@@ -1185,7 +1164,7 @@ def main():
     # 获取今天的日期字符串，格式如 "20261012"
     today_str = datetime.now().strftime('%Y%m%d')
 
-    #today_str = "20261017"  # 测试用
+    #today_str = "20261101"  # 测试用
 
     # 筛选标题中包含今天日期的链接
     filtered_items = []
@@ -1283,6 +1262,7 @@ def main():
                             # 对下载的图片进行OCR识别
                             print("正在进行OCR识别...")
                             ocr_result = ocr_image(img_filename)
+                            print(f"OCR结果: {ocr_result}")
 
                             # 从OCR结果中解析贵港枢纽和大藤峡枢纽数据
                             ocr_reservoir_data = parse_ocr_reservoir_data(ocr_result, publish_date)
