@@ -124,17 +124,26 @@ def generate_html_report(data):
             line-height: 32px;
         }}
         .status-red {{
-            color: red;
-        }}
-        .status-blue {{
-            color: #007bff;
-        }}
-        .status-green {{
-            color: #03ed08;
+            color: #fe2d2d;
         }}
         .status-orange {{
             color: #f3a533;
         }}
+        .status-blue {{
+            color: #007bff;
+        }}
+
+        .status-green {{
+            color: #00d305;
+        }}
+        
+        .status-wRed {{
+            color: #d60000;
+        }}
+        .status-wGreen {{
+            color: #009003;
+        }}
+
         .cc {{
             color: green;
             font-size: 170%;
@@ -217,11 +226,8 @@ def generate_html_report(data):
     # 测试输出
     #print(sorted_data)
 
-    # 获取最新数据的上游状态、所有站点状态
+    # 获取最新的所有站点实时水位数据
     if sorted_data:
-        latest_upstream_color = sorted_data[-1].get('上游情况', {}).get('颜色', 'blue')
-        latest_upstream_desc = sorted_data[-1].get('上游情况', {}).get('描述', '-')
-        latest_upstream_change = sorted_data[-1].get('上游情况', {}).get('总变化和', '0')
 
         latest_wuzhou_color = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('颜色', 'black')
         latest_wuzhou_desc = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('情况', '-')
@@ -255,102 +261,25 @@ def generate_html_report(data):
 
         latest_datengxia_data = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('上游水位', '0')
         latest_datengxia_fs = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('是否放水', '0')
-        latest_datengxia_rkll = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('入库流量', '0')
+        latest_datengxia_rkll = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('入库流量', '-')
         latest_datengxia_ckll = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('出库流量', '0')
 
         latest_gg_data = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('上游水位', '0')
         latest_gg_fs = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('是否放水', '0')
-        latest_gg_rkll = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('入库流量', '0')
+        latest_gg_rkll = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('入库流量', '-')
         latest_gg_ckll = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('出库流量', '0')
 
         latest_changzhou_data = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('上游水位', '0')
         latest_changzhou_fs = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('是否放水', '0')
-        latest_changzhou_rkll = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('入库流量', '0')
+        latest_changzhou_rkll = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('入库流量', '-')
         latest_changzhou_ckll = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('出库流量', '0')
 
-    latest_upstream_change_value = ''
-    if latest_upstream_change >= 0:
-        latest_upstream_change_value += '变化'
-    else:
-        latest_upstream_change_value += '变化'
-    latest_upstream_change_value += str(format(abs(latest_upstream_change), '.2f'))
-    
-    #上游变化和加权水库放水信息！
-    latest_upstream_change += float(latest_datengxia_fs)*0.3*float(latest_datengxia_ckll)/5000+float(latest_gg_fs)*0.3*float(latest_gg_ckll)/5000+float(latest_changzhou_fs)*0.5*float(latest_changzhou_ckll)/5000
+        #因为实时数据要和早八点数据分开，所以单独取出早八点数据新建变量
+        am8_wuzhou_color = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('颜色', 'black')
+        am8_wuzhou_desc = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('情况', '-')
+        am8_wuzhou_data = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('水位', '0')
+        am8_wuzhou_change = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('变化值', '0')        
 
-    #计算预报值 如果变化幅度过小就上下略微波动 否则梧州预计变化值在上游最新总变化值0.35到0.65之间
-    latest_wuzhou_data_float = float(latest_wuzhou_data)  # 转换为浮点数
-    if latest_upstream_change <= 0.5 and latest_upstream_change >= -0.5:
-        latest_wuzhou_p1 = format(latest_wuzhou_data_float - latest_upstream_change*0.7, '.2f')
-        latest_wuzhou_p2 = format(latest_wuzhou_data_float + latest_upstream_change*0.7, '.2f')
-    else:
-        latest_wuzhou_p1 = format(latest_wuzhou_data_float + latest_upstream_change*0.4, '.2f')
-        latest_wuzhou_p2 = format(latest_wuzhou_data_float + latest_upstream_change*0.7, '.2f')
-
-    lp3 = 0 #互换一下
-    if latest_wuzhou_p1 > latest_wuzhou_p2:
-        lp3 = latest_wuzhou_p2
-        latest_wuzhou_p2 = latest_wuzhou_p1
-        latest_wuzhou_p1 = lp3
-
-    # 计算预报颜色样式 如果上游变化幅度过小或水位下降就用蓝色 否则用红色
-    if latest_upstream_change <= 0.5:
-        latest_wuzhou_pColor = 'blue'
-    else:
-        latest_wuzhou_pColor = 'red'
-
-    #计算预报程度描述 如果上游变化幅度绝对值小于0.5为“变化不大”，绝对值在0.5和2直接为“略微”，绝对值在2和4直接为“明显”，绝对值大于4为“大幅”
-    if abs(latest_upstream_change) < 0.5:
-        latest_wuzhou_pDesc = '变化不大 '
-        latest_upstream_des = ''
-    elif abs(latest_upstream_change) < 2:
-        latest_wuzhou_pDesc = '略微'
-        if latest_upstream_desc == '较平稳':
-            latest_upstream_des = ''
-        else:
-            latest_upstream_des = '略微'
-    elif abs(latest_upstream_change) < 4:
-        latest_wuzhou_pDesc = '明显'
-        latest_upstream_des = '明显'
-    else:
-        latest_wuzhou_pDesc = '大幅'
-        latest_upstream_des = '大幅'
-
-    #计算预报上升或下降，如果上游变化幅度大于0.5为“上升”，小于-0.5为“下降”，否则为“小幅波动”
-    if latest_upstream_change > 0.5:
-        latest_wuzhou_pDirection = '上升'
-    elif latest_upstream_change < -0.5:
-        latest_wuzhou_pDirection = '下降'
-    else:
-        latest_wuzhou_pDirection = '上下小幅波动'
-
-    #计算预报情况符号，如果上游变化幅度在0.5和2之间用↗︎，在2和4之间用▲，在4以上用⏫︎；如果上游变化幅度在-0.5和-2之间用↘︎，在-2和-4之间用▼，在-4以上用⏬︎，否则用〰︎
-    if latest_upstream_change > 0.5 and latest_upstream_change < 2:
-        latest_wuzhou_pSymbol = '↗︎'
-        latest_upstream_Symbol = '↗︎'
-    elif latest_upstream_change > 2 and latest_upstream_change < 4:
-        latest_wuzhou_pSymbol = '▲'
-        latest_upstream_Symbol = '▲'
-    elif latest_upstream_change > 4:
-        latest_wuzhou_pSymbol = '⏫︎'
-        latest_upstream_Symbol = '⏫︎'
-    elif latest_upstream_change < -0.5 and latest_upstream_change > -2:
-        latest_wuzhou_pSymbol = '↘︎'
-        latest_upstream_Symbol = '↘︎'
-    elif latest_upstream_change < -2 and latest_upstream_change > -4:
-        latest_wuzhou_pSymbol = '▼'
-        latest_upstream_Symbol = '▼'
-    elif latest_upstream_change < -4:
-        latest_wuzhou_pSymbol = '⏬︎'
-        latest_upstream_Symbol = '⏬︎'
-    elif latest_upstream_change > 0 and latest_upstream_change <= 0.5:
-        latest_upstream_Symbol = '↗︎'
-        latest_wuzhou_pSymbol = '  '
-    elif latest_upstream_change < 0 and latest_upstream_change >= -0.5:
-        latest_upstream_Symbol = '↘︎'
-        latest_wuzhou_pSymbol = '  '
-    else:
-        latest_wuzhou_pSymbol = '  '
 
     #站点告警文字
     station_warning = ' '
@@ -721,24 +650,24 @@ def generate_html_report(data):
         <div class="status-section">
             <div class="status-item">
                 <span class="status-label">上游整体情况：</span>
-                <span class="status-value status-{latest_upstream_color}" style="font-size:35px">
-                    水位{latest_upstream_des}{latest_upstream_desc} &nbsp;整体{latest_upstream_change_value}m &nbsp;&nbsp;
+                <span class="status-value status-red" style="font-size:35px">
+                    水位 调整中 &nbsp;整体 调整中 m &nbsp;&nbsp;
                 </span>
             </div>
             <div class="status-item">
                 <span class="status-label">今早八点梧州水位：</span>
-                <span class="status-value status-{latest_wuzhou_color}">
-                    {latest_wuzhou_data}m&nbsp;
+                <span class="status-value status-{am8_wuzhou_color}">
+                    {am8_wuzhou_data}m&nbsp;
                 </span>
                 <span class="status-label">较昨日变化：</span>
-                <span class="status-value status-{latest_wuzhou_color}">
-                    {latest_wuzhou_change}m{latest_wuzhou_desc}
-                </span>
+                <span class="status-value status-{am8_wuzhou_color}">
+                    {am8_wuzhou_change}m{am8_wuzhou_desc}
+                </span> 
             </div>
             <div class="status-item">
                 <span class="status-label">近2天梧州水位预报：</span>
-                <span class="status-value status-{latest_wuzhou_pColor}">
-                    {latest_wuzhou_p1}m~{latest_wuzhou_p2}m      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;   预计水位{latest_wuzhou_pDesc}{latest_wuzhou_pDirection}{latest_wuzhou_pSymbol}  
+                <span class="status-value status-red">
+                    调整中 m~ 调整中 m      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;   预计水位 调整中 
                 </span>
             </div>
         </div>
@@ -899,8 +828,8 @@ def parse_water_level_data(html_content, publish_date):
     """解析水位数据"""
     soup = BeautifulSoup(html_content, 'html.parser')
 
-    # 目标站点
-    target_stations = ['梧州', '濛江', '横县', '武宣', '来宾', '峦城']
+    # 目标站点（新数据源只爬取梧州）
+    target_stations = ['梧州']
 
     # 查找所有表格
     tables = soup.find_all('table')
@@ -945,7 +874,7 @@ def parse_water_level_data(html_content, publish_date):
                             change_des = "▲"
                             color = "red"
                         elif change_num >= 2:
-                            change_value_num = 0  # 大幅上升
+                            change_value_num = 1  # 大幅上升
                             change_des = "⏫︎"
                             color = "red"
                         elif change_num <= 0 and change_num > -2:
@@ -1287,9 +1216,9 @@ def main():
         time.sleep(1)
 
     # 输出所有爬取的数据
-    print("\n\n")
+    print("\n")
     print("=" * 60)
-    print("所有水位数据汇总")
+    print("梧州早八点水位数据")
     print("=" * 60)
 
     for station_name in sorted(all_water_data.keys()):
@@ -1305,9 +1234,9 @@ def main():
         print("-" * 60)
 
     # 输出所有爬取的水库数据
-    print("\n\n")
+    print("\n")
     print("=" * 60)
-    print("水库/船闸数据汇总")
+    print("水库船闸数据汇总")
     print("=" * 60)
 
     for reservoir_name in sorted(all_reservoir_data.keys()):
@@ -1336,46 +1265,11 @@ def main():
 
     # 添加或更新数据
     if new_data_time:
-        # 计算上游整体情况（来宾、武宣、横县、峦城、濛江）
-        upstream_stations = ['来宾', '武宣', '横县', '峦城', '濛江']
-        upstream_change_sum = 0
-        up_change_value_sum = 0
-        for station in upstream_stations:
-            if station in all_water_data:
-                upstream_change_sum += all_water_data[station]['变化']
-                up_change_value_sum += float(all_water_data[station]['变化值'])
-
-
-        # 根据上游变化和值决定整体情况
-        if upstream_change_sum == 0:
-            upstream_status = "下降⏬︎"
-            upstream_color = "blue"
-        elif upstream_change_sum == 1:
-            upstream_status = "下降▼"
-            upstream_color = "blue"
-        elif upstream_change_sum == 2:
-            upstream_status = "较平稳"
-            upstream_color = "blue"
-        elif upstream_change_sum == 3:
-            upstream_status = "上升▲"
-            upstream_color = "red"
-        else:  # 4或5
-            upstream_status = "上升⏫︎"
-            upstream_color = "red"
-
         record_data = {
             '时间': new_data_time,
             '站点数据': all_water_data,
             '枢纽数据': all_reservoir_data,
-            '上游情况': {
-                '描述': upstream_status,
-                '颜色': upstream_color,
-                '变化和': upstream_change_sum,
-                '总变化和': up_change_value_sum
-            }
         }
-
-        print(f"\n上游整体情况: {upstream_status} 变化和: {upstream_change_sum} 总变化和: {up_change_value_sum}")
 
         if existing_index >= 0:
             print(f"更新时间 {new_data_time} 的数据")
