@@ -6,6 +6,227 @@ import json
 from datetime import datetime
 import os
 import base64
+import sys
+
+# ============================================================
+# 实时水情数据相关（来源：广西水利厅API）
+# ============================================================
+
+REALTIME_API_URL = "http://slt.gxzf.gov.cn/gxsl/api/sl323/realtime/river/"
+REALTIME_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Referer": "http://slt.gxzf.gov.cn/page/index.html?act=3",
+    "Accept": "application/json, text/plain, */*",
+}
+REALTIME_TARGET_STATIONS = [
+    "梧州（四）（水文）",
+    "南宁（三）（水文）",
+    "贵港（水文）",
+    "平南（水文）",
+    "来宾（水文）",
+    "武宣",
+]
+REALTIME_JSON_FILE = "realtime_water_level.json"
+
+
+def realtime_clean_station_name(name):
+    """清洗站名：去掉所有括号及括号内的内容"""
+    name = re.sub(r'[（(].*?[)）]', '', name)
+    return name.strip()
+
+
+def realtime_fetch_water_data(st_name=""):
+    """从 API 获取实时水情数据"""
+    url = REALTIME_API_URL + st_name
+    print(f"正在请求实时水情API: {url}")
+    try:
+        resp = requests.get(url, headers=REALTIME_HEADERS, timeout=60)
+        resp.raise_for_status()
+        data = resp.json()
+        result = data.get("result", [])
+        print(f"成功获取 {len(result)} 条实时水情记录")
+        return result
+    except requests.RequestException as e:
+        print(f"实时水情请求失败: {e}")
+        return []
+    except json.JSONDecodeError as e:
+        print(f"实时水情JSON解析失败: {e}")
+        return []
+
+
+def realtime_filter_stations(data, station_names):
+    """从全部数据中筛选目标站点"""
+    target_set = set(station_names)
+    filtered = []
+    for row in data:
+        stnm = str(row.get("STNM", "")).strip()
+        if stnm in target_set:
+            filtered.append(row)
+    print(f"筛选目标站点: {len(filtered)}/{len(station_names)} 个")
+    found = {str(r.get("STNM", "")).strip() for r in filtered}
+    missing = target_set - found
+    if missing:
+        print(f"警告: 未找到以下站点: {', '.join(missing)}")
+    return filtered
+
+
+def realtime_extract_fields(data):
+    """提取需要的字段，以纯净站名为 key 组织成字典"""
+    cleaned = {}
+    for row in data:
+        raw_name = str(row.get("STNM", "")).strip()
+        name = realtime_clean_station_name(raw_name)
+        tm = row.get("TM")
+        if tm and isinstance(tm, (int, float)):
+            try:
+                tm = datetime.fromtimestamp(tm / 1000).strftime("%m-%d %H:%M")
+            except (ValueError, OSError):
+                pass
+        cleaned[name] = {
+            "Z": row.get("Z"),
+            "ZWRNDLT": row.get("ZWRNDLT"),
+            "TM": tm,
+        }
+    return cleaned
+
+
+def realtime_load_existing(filename=REALTIME_JSON_FILE):
+    """读取已有的实时 JSON 数据文件"""
+    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+    if not os.path.exists(filepath):
+        return []
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            existing = json.load(f)
+        if not isinstance(existing, list):
+            return []
+        return existing
+    except (json.JSONDecodeError, OSError):
+        return []
+
+
+def realtime_calc_water_change(data, existing):
+    """计算各站水位变化值（与上一批数据对比）"""
+    prev_stations = {}
+    if existing:
+        prev_batch = existing[-1]
+        prev_stations = prev_batch.get("站点实时数据", {})
+    for name, info in data.items():
+        prev_z = prev_stations.get(name, {}).get("Z")
+        curr_z = info.get("Z")
+        if prev_z is not None and curr_z is not None:
+            delta = round(curr_z - prev_z, 2)
+            info["变化值"] = f"{delta:+.2f}"
+            info["变化"] = 1 if delta > 0 else 0
+            info["情况"] = "▲" if delta > 0 else "▼"
+            info["颜色"] = "wRed" if delta > 0 else "wGreen"
+        else:
+            info["变化值"] = None
+            info["变化"] = None
+            info["情况"] = None
+            info["颜色"] = None
+    return data
+
+
+def realtime_calc_summary(data):
+    """计算统计信息"""
+    total = len(data)
+    over_warning = sum(1 for v in data.values() if v.get("ZWRNDLT") is not None and float(v["ZWRNDLT"]) > 0)
+    rising = sum(1 for v in data.values() if v.get("变化") == 1)
+    falling = sum(1 for v in data.values() if v.get("变化") == 0)
+    return {
+        "站点总数": total,
+        "超警戒数": over_warning,
+        "上升站点数": rising,
+        "下降站点数": falling,
+    }
+
+
+def realtime_save_to_json(data, summary, existing, filename=REALTIME_JSON_FILE):
+    """将实时数据以批次形式追加保存到 JSON 文件"""
+    if not data:
+        print("无实时数据可保存")
+        return
+    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+    data_time = ""
+    first_tm = next(iter(data.values()), {}).get("TM", "")
+    tm_str = str(first_tm) if first_tm else ""
+    match = re.search(r"(\d{2}:\d{2})", tm_str)
+    if match:
+        data_time = match.group(1)
+    batch = {
+        "爬取时间": datetime.now().strftime("%m-%d %H:%M:%S"),
+        "数据时间": data_time,
+        "站点实时数据": data,
+        "统计信息": summary,
+    }
+    existing.append(batch)
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(existing, f, ensure_ascii=False, indent=2)
+    print(f"实时数据已保存到: {filepath}（当前共 {len(existing)} 批）")
+
+
+def realtime_print_summary(data):
+    """打印实时数据摘要"""
+    if not data:
+        print("无实时数据")
+        return
+    print("\n" + "=" * 70)
+    print(f"实时水情数据（共 {len(data)} 个站点）")
+    print("=" * 70)
+    print(f"{'测站名称':<10} {'水位(m)':>8} {'超警戒(m)':>10} {'变化值':>8} {'情况':>4} {'时间':<22}")
+    print("-" * 70)
+    for name, info in data.items():
+        z = info.get("Z")
+        zwrndlt = info.get("ZWRNDLT")
+        tm = info.get("TM", "")
+        delta = info.get("变化值")
+        trend = info.get("情况", "")
+        z_str = f"{z:.2f}" if z is not None else "-"
+        zwrndlt_str = f"{zwrndlt:+.2f}" if zwrndlt is not None else "-"
+        delta_str = delta if delta is not None else "-"
+        print(f"{name:<10} {z_str:>8} {zwrndlt_str:>10} {delta_str:>8} {trend:>4} {str(tm):<22}")
+    print("=" * 70)
+    over_warning = sum(1 for v in data.values() if v.get("ZWRNDLT") is not None and float(v["ZWRNDLT"]) > 0)
+    rising = sum(1 for v in data.values() if v.get("变化") == 1)
+    print(f"统计: 总站点 {len(data)} | 超警戒 {over_warning} | 水位上升 {rising} | 水位下降/持平 {len(data) - rising}")
+    print()
+
+
+def realtime_main():
+    """实时水情爬取主函数"""
+    print("=" * 60)
+    print("广西水利厅实时水情")
+    print("数据来源: http://slt.gxzf.gov.cn/page/index.html?act=3")
+    print(f"目标站点: {', '.join(REALTIME_TARGET_STATIONS)}")
+    print("=" * 60)
+
+    data = realtime_fetch_water_data("")
+    if not data:
+        print("未获取到实时水情数据")
+        return None
+
+    filtered = realtime_filter_stations(data, REALTIME_TARGET_STATIONS)
+    if not filtered:
+        print("未筛选到目标站点数据")
+        return None
+
+    cleaned = realtime_extract_fields(filtered)
+    existing = realtime_load_existing(REALTIME_JSON_FILE)
+    if existing:
+        print(f"已有 {len(existing)} 批实时历史数据")
+    cleaned = realtime_calc_water_change(cleaned, existing)
+    summary = realtime_calc_summary(cleaned)
+    realtime_print_summary(cleaned)
+    realtime_save_to_json(cleaned, summary, existing, REALTIME_JSON_FILE)
+    print("\n实时水情爬取完成！")
+    return cleaned
+
+
+# ============================================================
+# 原有早八点水情数据相关
+# ============================================================
 
 
 def load_data():
@@ -101,10 +322,10 @@ def generate_html_report(data):
             margin: 10px 0;
             border: 2px solid #ddd;
             display: flex;
-            justify-content: flex-start;
+            justify-content: center;
             align-items: center;
             flex-wrap: wrap;
-            gap: 15px;
+            gap: 0px;
         }}
         .status-item {{
             align-items: self-end;
@@ -214,7 +435,6 @@ def generate_html_report(data):
         <div class="chart-section">
             <div class="chart-container">
                 <canvas id="waterLevelChart"></canvas>
-                <div class="image-overlay-text " style="position: absolute; top: 50%; left: 50%; font-size:150%;opacity: 0.3;color: red;">如果当日部分站点数据缺失，请尝试在上午10点后再次运行程序，并查看最新生成的可视化报告！</div>
                 <div class="image-overlay-text " style="position: absolute; top: 7%; left: 48%; font-size:100%;opacity: 0.3;color: black;">单击站点名称↓，可选择是否显示其水位波动曲线</div>
             </div>
         </div>
@@ -226,53 +446,23 @@ def generate_html_report(data):
     # 测试输出
     #print(sorted_data)
 
-    # 获取最新的所有站点实时水位数据
+    # 获取数据
     if sorted_data:
+        #只拿早八点的水库船闸数据和梧州水位数据 
+        am8_datengxia_data = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('上游水位', '0')
+        am8_datengxia_fs = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('是否放水', '0')
+        am8_datengxia_rkll = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('入库流量', '-')
+        am8_datengxia_ckll = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('出库流量', '0')
 
-        latest_wuzhou_color = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('颜色', 'black')
-        latest_wuzhou_desc = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('情况', '-')
-        latest_wuzhou_data = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('水位', '0')
-        latest_wuzhou_change = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('变化值', '0')
+        am8_guigang_data = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('上游水位', '0')
+        am8_guigang_fs = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('是否放水', '0')
+        am8_guigang_rkll = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('入库流量', '-')
+        am8_guigang_ckll = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('出库流量', '0')
 
-        latest_mengjiang_color = sorted_data[-1].get('站点数据',{}).get('濛江', {}).get('颜色', 'black')
-        latest_mengjiang_desc = sorted_data[-1].get('站点数据',{}).get('濛江', {}).get('情况', '-')
-        latest_mengjiang_data = sorted_data[-1].get('站点数据',{}).get('濛江', {}).get('水位', '0')
-        latest_mengjiang_change = sorted_data[-1].get('站点数据',{}).get('濛江', {}).get('变化值', '0')
-
-        latest_wuxuan_color = sorted_data[-1].get('站点数据',{}).get('武宣', {}).get('颜色', 'black')
-        latest_wuxuan_desc = sorted_data[-1].get('站点数据',{}).get('武宣', {}).get('情况', '-')
-        latest_wuxuan_data = sorted_data[-1].get('站点数据',{}).get('武宣', {}).get('水位', '0')
-        latest_wuxuan_change = sorted_data[-1].get('站点数据',{}).get('武宣', {}).get('变化值', '0')
-
-        latest_laibing_color = sorted_data[-1].get('站点数据',{}).get('来宾', {}).get('颜色', 'black')
-        latest_laibing_desc = sorted_data[-1].get('站点数据',{}).get('来宾', {}).get('情况', '-')
-        latest_laibing_data = sorted_data[-1].get('站点数据',{}).get('来宾', {}).get('水位', '0')
-        latest_laibing_change = sorted_data[-1].get('站点数据',{}).get('来宾', {}).get('变化值', '0')
-
-        latest_luancheng_color = sorted_data[-1].get('站点数据',{}).get('峦城', {}).get('颜色', 'black')
-        latest_luancheng_desc = sorted_data[-1].get('站点数据',{}).get('峦城', {}).get('情况', '-')
-        latest_luancheng_data = sorted_data[-1].get('站点数据',{}).get('峦城', {}).get('水位', '0')
-        latest_luancheng_change = sorted_data[-1].get('站点数据',{}).get('峦城', {}).get('变化值', '0')
-
-        latest_hx_color = sorted_data[-1].get('站点数据',{}).get('横县', {}).get('颜色', 'black')
-        latest_hx_desc = sorted_data[-1].get('站点数据',{}).get('横县', {}).get('情况', '-')
-        latest_hx_data = sorted_data[-1].get('站点数据',{}).get('横县', {}).get('水位', '0')
-        latest_hx_change = sorted_data[-1].get('站点数据',{}).get('横县', {}).get('变化值', '0')
-
-        latest_datengxia_data = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('上游水位', '0')
-        latest_datengxia_fs = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('是否放水', '0')
-        latest_datengxia_rkll = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('入库流量', '-')
-        latest_datengxia_ckll = sorted_data[-1].get('枢纽数据',{}).get('大藤峡枢纽', {}).get('出库流量', '0')
-
-        latest_gg_data = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('上游水位', '0')
-        latest_gg_fs = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('是否放水', '0')
-        latest_gg_rkll = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('入库流量', '-')
-        latest_gg_ckll = sorted_data[-1].get('枢纽数据',{}).get('贵港枢纽', {}).get('出库流量', '0')
-
-        latest_changzhou_data = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('上游水位', '0')
-        latest_changzhou_fs = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('是否放水', '0')
-        latest_changzhou_rkll = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('入库流量', '-')
-        latest_changzhou_ckll = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('出库流量', '0')
+        am8_changzhou_data = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('上游水位', '0')
+        am8_changzhou_fs = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('是否放水', '0')
+        am8_changzhou_rkll = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('入库流量', '-')
+        am8_changzhou_ckll = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('出库流量', '0')
 
         #因为实时数据要和早八点数据分开，所以单独取出早八点数据新建变量
         am8_wuzhou_color = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('颜色', 'black')
@@ -280,6 +470,53 @@ def generate_html_report(data):
         am8_wuzhou_data = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('水位', '0')
         am8_wuzhou_change = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('变化值', '0')        
 
+    # 加载实时水情数据（来源：realtime_water_level.json）
+    realtime_history = realtime_load_existing(REALTIME_JSON_FILE)
+    if realtime_history:
+        rt = realtime_history[-1].get('站点实时数据', {})
+        latest_wuzhou_time = realtime_history[-1].get('数据时间', '未知')
+
+        latest_wuzhou_data = rt.get('梧州', {}).get('Z', '0')
+        latest_wuzhou_change = rt.get('梧州', {}).get('变化值', '0')
+        latest_wuzhou_overWarning = rt.get('梧州', {}).get('ZWRNDLT', '-99')
+        latest_wuzhou_color = rt.get('梧州', {}).get('颜色', 'black')
+        latest_wuzhou_desc = rt.get('梧州', {}).get('情况', '-')
+
+        latest_mengjiang_data = rt.get('平南', {}).get('Z', '0')
+        latest_mengjiang_change = rt.get('平南', {}).get('变化值', '0')
+        latest_mengjiang_overWarning = rt.get('平南', {}).get('ZWRNDLT', '-99')
+        latest_mengjiang_color = rt.get('平南', {}).get('颜色', 'black')
+        latest_mengjiang_desc = rt.get('平南', {}).get('情况', '-')
+
+        latest_wuxuan_data = rt.get('武宣', {}).get('Z', '0')
+        latest_wuxuan_change = rt.get('武宣', {}).get('变化值', '0')
+        latest_wuxuan_overWarning = rt.get('武宣', {}).get('ZWRNDLT', '-99')
+        latest_wuxuan_color = rt.get('武宣', {}).get('颜色', 'black')
+        latest_wuxuan_desc = rt.get('武宣', {}).get('情况', '-')
+
+        latest_laibing_data = rt.get('来宾', {}).get('Z', '0')
+        latest_laibing_change = rt.get('来宾', {}).get('变化值', '0')
+        latest_laibing_overWarning = rt.get('来宾', {}).get('ZWRNDLT', '-99')
+        latest_laibing_color = rt.get('来宾', {}).get('颜色', 'black')
+        latest_laibing_desc = rt.get('来宾', {}).get('情况', '-')
+
+        latest_luancheng_data = rt.get('南宁', {}).get('Z', '0')
+        latest_luancheng_change = rt.get('南宁', {}).get('变化值', '0')
+        latest_luancheng_overWarning = rt.get('南宁', {}).get('ZWRNDLT', '-99')
+        latest_luancheng_color = rt.get('南宁', {}).get('颜色', 'black')
+        latest_luancheng_desc = rt.get('南宁', {}).get('情况', '-')
+
+        latest_hx_data = rt.get('贵港', {}).get('Z', '0')
+        latest_hx_change = rt.get('贵港', {}).get('变化值', '0')
+        latest_hx_overWarning = rt.get('贵港', {}).get('ZWRNDLT', '-99')
+        latest_hx_color = rt.get('贵港', {}).get('颜色', 'black')
+        latest_hx_desc = rt.get('贵港', {}).get('情况', '-')
+
+        latest_stationNumber = realtime_history[-1].get('统计信息', {}).get('站点总数', '0')
+        latest_warningNumber = realtime_history[-1].get('统计信息', {}).get('超警戒线数', '0')
+        latest_upNumber = realtime_history[-1].get('统计信息', {}).get('上升站点数', '0')
+        latest_downNumber = realtime_history[-1].get('统计信息', {}).get('下降站点数', '0')
+        print(f"已加载实时水情数据，最新批次时间: {realtime_history[-1].get('爬取时间', '未知')}")
 
     #站点告警文字
     station_warning = ' '
@@ -294,66 +531,66 @@ def generate_html_report(data):
 
     #站点是否需要超警戒线警告
     s1 = 0
-    if float(latest_wuzhou_data) >= 18.5:
+    if float(latest_wuzhou_overWarning) >= 0:  #梧州警戒线18.5
         latest_wuzhou_wSymbol = '🚨'
         station_warning += '<br> &nbsp;'
         station_warning += '梧州（已超警'
-        station_warning += str(format(float(latest_wuzhou_data)-18.5), '.2f')
+        station_warning += str(format(float(latest_wuzhou_overWarning)), '.2f')
         station_warning += '米）'
         s1 = 1
 
-    if float(latest_mengjiang_data) >= 25:  #百度搜出来是25，藤县是23
+    if float(latest_mengjiang_overWarning) >= 0:  #平南警戒线29 濛江25，藤县23
         latest_mengjiang_wSymbol = '🚨'
         if s1 != 0:
             station_warning += '、'
         else:
             station_warning += '<br> &nbsp;'
         station_warning += '濛江（已超警'
-        station_warning += str(format(float(latest_mengjiang_data)-25), '.2f')
+        station_warning += str(format(float(latest_mengjiang_overWarning)), '.2f')
         station_warning += '米）'
         s1 = 1
 
-    if float(latest_hx_data) >= 54:  #贵港坝上站不清楚具体超警戒线    横县警戒线54.2米    贵港坝下警戒线是41.2米
+    if float(latest_hx_overWarning) >= 0:  #贵港坝下警戒线41.2米 横县警戒线54.2米
         latest_hx_wSymbol = '🚨'
         if s1 != 0:
             station_warning += '、'
         else:
             station_warning += '<br> &nbsp;'
         station_warning += '横县（已超警'
-        station_warning += str(format(float(latest_hx_data)-54), '.2f')
+        station_warning += str(format(float(latest_hx_overWarning)), '.2f')
         station_warning += '米）'
         s1 = 1
 
-    if float(latest_luancheng_data) >= 64.2:     #官方记载64.2米
+    if float(latest_luancheng_overWarning) >= 0:     #南宁警戒线73 峦城64.2米
         latest_luancheng_wSymbol = '🚨'
         if s1 != 0:
             station_warning += '、'
         else:
             station_warning += '<br> &nbsp;'
         station_warning += '峦城（已超警'
-        station_warning += str(format(float(latest_luancheng_data)-64.2), '.2f')
+        station_warning += str(format(float(latest_luancheng_overWarning)), '.2f')
         station_warning += '米）'
         s1 = 1
 
-    if float(latest_wuxuan_data) >= 61.4:  # 查出来是62
+    if float(latest_wuxuan_overWarning) >= 62:  #武宣警戒线62
         latest_wuxuan_wSymbol = '🚨'
         if s1 != 0:
             station_warning += '、'
         else:
             station_warning += '<br> &nbsp;'
         station_warning += '武宣（已超警'
-        station_warning += str(format(float(latest_wuxuan_data)-61.4), '.2f')
+        station_warning += str(format(float(latest_wuxuan_overWarning)), '.2f')
         station_warning += '米）'
         s1 = 1
 
-    if float(latest_laibing_data) >= 62:  #查出来是76.5
+    if float(latest_laibing_overWarning) >= 77.9:  #来宾警戒线77.4
         latest_laibing_wSymbol = '🚨'
         if s1 != 0:
             station_warning += '、'
         else:
             station_warning += '<br> &nbsp;'
         station_warning += '来宾（已超警'
-        station_warning += str(format(float(latest_laibing_data)-62), '.2f')
+        station_warning += str(format(float(latest_laibing_overWarning)), '.2f')
         station_warning += '米）'
         s1 = 1
 
@@ -366,26 +603,26 @@ def generate_html_report(data):
         station_warning += '<br> &nbsp;'
         station_warning += '梧州（水位已超过13米）'
 
-    if float(latest_mengjiang_data) >= 23.5 and float(latest_mengjiang_data) < 25:
+    if float(latest_mengjiang_data) >= 25 and float(latest_mengjiang_data) < 28:
         latest_mengjiang_wSymbol = '⚠️'
         if s2 != 0:
             station_warning += '、'
         else:
             station_warning += '<br> &nbsp;'
-        station_warning += '濛江（水位已超过23米）'
+        station_warning += '濛江（水位已超过25米）'
 
     if s2 != 0:
         station_warning += '水位较高，注意留意封航通知！'
 
     #站点是否需要水位快速上涨警告
     s3 = 0
-    if float(latest_wuzhou_change) > 2:
+    if float(latest_wuzhou_change) > 0.2:
         latest_wuzhou_wSymbol = '🚨'
         station_warning += '<br> &nbsp;'
         station_warning += '梧州'
         s3 = 1
 
-    if float(latest_mengjiang_change) > 2:
+    if float(latest_mengjiang_change) > 0.2:
         latest_mengjiang_wSymbol = '🚨'
         if s3 != 0:
             station_warning += '、'
@@ -394,7 +631,7 @@ def generate_html_report(data):
         station_warning += '濛江'
         s3 = 1
 
-    if float(latest_wuxuan_change) > 2:
+    if float(latest_wuxuan_change) > 0.2:
         latest_wuxuan_wSymbol = '🚨'
         if s3 != 0:
             station_warning += '、'
@@ -403,7 +640,7 @@ def generate_html_report(data):
         station_warning += '武宣'
         s3 = 1
 
-    if float(latest_laibing_change) > 2:
+    if float(latest_laibing_change) > 0.2:
         latest_laibing_wSymbol = '🚨'
         if s3 != 0:
             station_warning += '、'
@@ -412,7 +649,7 @@ def generate_html_report(data):
         station_warning += '来宾'
         s3 = 1
 
-    if float(latest_luancheng_change) > 2:
+    if float(latest_luancheng_change) > 0.2:
         latest_luancheng_wSymbol = '🚨'
         if s3 != 0:
             station_warning += '、'
@@ -421,7 +658,7 @@ def generate_html_report(data):
         station_warning += '峦城'
         s3 = 1
 
-    if float(latest_hx_change) > 2:
+    if float(latest_hx_change) > 0.2:
         latest_hx_wSymbol = '🚨'
         if s3 != 0:
             station_warning += '、'
@@ -431,7 +668,7 @@ def generate_html_report(data):
         s3 = 1
 
     if s3 != 0:
-        station_warning += '水位快速上涨（日涨幅已超2米）！请密切关注水位变化！'
+        station_warning += '水位快速上涨（一小时涨幅达0.2米）！请密切关注水位变化！'
 
     #梧州是否需要水位过低警告
     if float(latest_wuzhou_data) < 4:
@@ -450,49 +687,49 @@ def generate_html_report(data):
     #水库预警文字
     reservoir_warning = ' '
 
-    latest_datengxia_wSymbol = ' '
-    latest_gg_wSymbol = ' '
-    latest_changzhou_wSymbol = ' '
-    latest_datengxia_color = 'blue'
-    latest_gg_color = 'blue'
-    latest_changzhou_color = 'blue'
+    am8_datengxia_wSymbol = ' '
+    am8_guigang_wSymbol = ' '
+    am8_changzhou_wSymbol = ' '
+    am8_datengxia_color = 'blue'
+    am8_guigang_color = 'blue'
+    am8_changzhou_color = 'blue'
  
     #水库是否需要开闸预警
     r2 = 0
-    if float(latest_datengxia_fs) == 1 or float(latest_datengxia_ckll) >= 12000:
-        latest_datengxia_color = 'orange'
-        latest_datengxia_wSymbol += '🌊'
+    if float(am8_datengxia_fs) == 1 or float(am8_datengxia_ckll) >= 12000:
+        am8_datengxia_color = 'orange'
+        am8_datengxia_wSymbol += '🌊'
         reservoir_warning += '<br> &nbsp;'
         reservoir_warning += '大藤峡枢纽'
-        if float(latest_datengxia_ckll) >= 12000:
+        if float(am8_datengxia_ckll) >= 12000:
             reservoir_warning += '(出库流量达'
-            reservoir_warning += latest_datengxia_ckll
+            reservoir_warning += am8_datengxia_ckll
             reservoir_warning += 'm³/秒，较大)'
         r2 = 1
-    if float(latest_gg_fs) == 1 or float(latest_gg_ckll) >= 12000:
-        latest_gg_color = 'orange'
-        latest_gg_wSymbol += '🌊'
+    if float(am8_guigang_fs) == 1 or float(am8_guigang_ckll) >= 12000:
+        am8_guigang_color = 'orange'
+        am8_guigang_wSymbol += '🌊'
         if r2 != 0:
             reservoir_warning += '、'
         else:
             reservoir_warning += '<br> &nbsp;'
         reservoir_warning += '贵港枢纽'
-        if float(latest_gg_ckll) >= 12000:
+        if float(am8_guigang_ckll) >= 12000:
             reservoir_warning += '(出库流量达'
-            reservoir_warning += latest_gg_ckll
+            reservoir_warning += am8_guigang_ckll
             reservoir_warning += 'm³/秒，较大)'
         r2 = 1
-    if float(latest_changzhou_fs) == 1 or float(latest_changzhou_ckll) >= 15000:
-        latest_changzhou_color = 'orange'
-        latest_changzhou_wSymbol += '🌊'
+    if float(am8_changzhou_fs) == 1 or float(am8_changzhou_ckll) >= 15000:
+        am8_changzhou_color = 'orange'
+        am8_changzhou_wSymbol += '🌊'
         if r2 != 0:
             reservoir_warning += '、'
         else:
             reservoir_warning += '<br> &nbsp;'
         reservoir_warning += '长洲枢纽'
-        if float(latest_changzhou_ckll) >= 15000:
+        if float(am8_changzhou_ckll) >= 15000:
             reservoir_warning += '(出库流量达'
-            reservoir_warning += latest_changzhou_ckll
+            reservoir_warning += am8_changzhou_ckll
             reservoir_warning += 'm³/秒，较大)'
         r2 = 1
     if r2 != 0:
@@ -500,111 +737,111 @@ def generate_html_report(data):
 
     #水库是否需要水位超过正常水位警告
     r3 = 0
-    if float(latest_datengxia_data) > 61:          #大藤峡61正常蓄水位
-        latest_datengxia_wSymbol += '🚨'
+    if float(am8_datengxia_data) > 61:          #大藤峡61正常蓄水位
+        am8_datengxia_wSymbol += '🚨'
         reservoir_warning += '<br> &nbsp;'
         reservoir_warning += '大藤峡枢纽（已超'
-        resevoir_warning += str(format((float(latest_datengxia_data)-61), '.2f'))
+        resevoir_warning += str(format((float(am8_datengxia_data)-61), '.2f'))
         resevoir_warning += '米）'
-        latest_datengxia_color = 'red'
+        am8_datengxia_color = 'red'
         r3 = 1
-    if float(latest_gg_data) > 43.1:          #贵港43.1正常蓄水位    西津正常蓄水位取62米
-        latest_gg_wSymbol += '🚨'
+    if float(am8_guigang_data) > 43.1:          #贵港43.1正常蓄水位    西津正常蓄水位取62米
+        am8_guigang_wSymbol += '🚨'
         if r3 != 0:
             reservoir_warning += '、'
         else:
             reservoir_warning += '<br> &nbsp;'
         reservoir_warning += '贵港枢纽(已超'
-        reservoir_warning += str(format((float(latest_gg_data)-43.1), '.2f'))
+        reservoir_warning += str(format((float(am8_guigang_data)-43.1), '.2f'))
         reservoir_warning += '米）'
-        latest_gg_color = 'red'
+        am8_guigang_color = 'red'
         r3 = 1
-    if float(latest_changzhou_data) > 20.6:          #长洲20.6正常蓄水位
-        latest_changzhou_wSymbol += '🚨'
+    if float(am8_changzhou_data) > 20.6:          #长洲20.6正常蓄水位
+        am8_changzhou_wSymbol += '🚨'
         if r3 != 0:
             reservoir_warning += '、'
         else:
             reservoir_warning += '<br> &nbsp;'
         reservoir_warning += '长洲枢纽(已超'
-        reservoir_warning += str(format((float(latest_changzhou_data)-20.6), '.2f'))
+        reservoir_warning += str(format((float(am8_changzhou_data)-20.6), '.2f'))
         reservoir_warning += '米）'
-        latest_changzhou_color = 'red'
+        am8_changzhou_color = 'red'
         r3 = 1
     if r3 != 0:
         reservoir_warning += '水位已超过正常蓄水位，可能进行泄洪放水！'
 
     #水库是否需要水位达到正常水位警告
     r4 = 0
-    if float(latest_datengxia_data) == 61:
-        latest_datengxia_wSymbol += '⚠️'
+    if float(am8_datengxia_data) == 61:
+        am8_datengxia_wSymbol += '⚠️'
         reservoir_warning += '<br> &nbsp;'
         reservoir_warning += '大藤峡枢纽'
-        latest_datengxia_color = 'orange'
+        am8_datengxia_color = 'orange'
         r4 = 1
-    if float(latest_gg_data) == 43.1:
-        latest_gg_wSymbol += '⚠️'
+    if float(am8_guigang_data) == 43.1:
+        am8_guigang_wSymbol += '⚠️'
         if r4 != 0:
             reservoir_warning += '、'
         else:
             reservoir_warning += '<br> &nbsp;'
         reservoir_warning += '贵港枢纽'
-        latest_gg_color = 'orange'
+        am8_guigang_color = 'orange'
         r4 = 1
-    if float(latest_changzhou_data) == 20.6:
-        latest_changzhou_wSymbol += '⚠️'
+    if float(am8_changzhou_data) == 20.6:
+        am8_changzhou_wSymbol += '⚠️'
         if r4 != 0:
             reservoir_warning += '、'
         else:
             reservoir_warning += '<br> &nbsp;'
         reservoir_warning += '长洲枢纽'
-        latest_changzhou_color = 'orange'
+        am8_changzhou_color = 'orange'
         r4 = 1
     if r4 != 0:
         reservoir_warning += '水位已达到正常蓄水位，请关注放水信息！'
     
      #水库是否需要水位高警告符号
     r1 = 0
-    if float(latest_datengxia_data) >= 60 and float(latest_datengxia_data) < 61:
-        latest_datengxia_wSymbol += '⚠️'
+    if float(am8_datengxia_data) >= 60 and float(am8_datengxia_data) < 61:
+        am8_datengxia_wSymbol += '⚠️'
         reservoir_warning += '<br> &nbsp;'
         reservoir_warning += '大藤峡枢纽(还差'
-        reservoir_warning += str(format(61-float(latest_datengxia_data), '.2f'))
+        reservoir_warning += str(format(61-float(am8_datengxia_data), '.2f'))
         reservoir_warning += '米）'
-        latest_datengxia_color = 'orange'
+        am8_datengxia_color = 'orange'
         r1 = 1
-    if float(latest_gg_data) >= 42 and float(latest_gg_data) < 43.1:
-        latest_gg_wSymbol += '⚠️'
+    if float(am8_guigang_data) >= 42 and float(am8_guigang_data) < 43.1:
+        am8_guigang_wSymbol += '⚠️'
         if r1 != 0:
             reservoir_warning += '、'
         else:
             reservoir_warning += '<br> &nbsp;'
         reservoir_warning += '贵港枢纽(还差'
-        reservoir_warning += str(format(43.1-float(latest_gg_data), '.2f'))
+        reservoir_warning += str(format(43.1-float(am8_guigang_data), '.2f'))
         reservoir_warning += '米）'
-        latest_gg_color = 'orange'
+        am8_guigang_color = 'orange'
         r1 = 1
-    if float(latest_changzhou_data) >= 19.6 and float(latest_changzhou_data) < 20.6:
-        latest_changzhou_wSymbol += '⚠️'
+    if float(am8_changzhou_data) >= 19.6 and float(am8_changzhou_data) < 20.6:
+        am8_changzhou_wSymbol += '⚠️'
         if r1 != 0:
             reservoir_warning += '、'
         else:
             reservoir_warning += '<br> &nbsp;'
         reservoir_warning += '长洲枢纽(还差'
-        reservoir_warning += str(format(20.6-float(latest_changzhou_data), '.2f'))
+        reservoir_warning += str(format(20.6-float(am8_changzhou_data), '.2f'))
         reservoir_warning += '米）'
-        latest_changzhou_color = 'orange'
+        am8_changzhou_color = 'orange'
         r1 = 1
     if r1 != 0:
         reservoir_warning += '接近正常蓄水位，请留意开闸放水信息！'
 
-    if latest_datengxia_wSymbol == ' ':
-        latest_datengxia_wSymbol += '正常'
+    if am8_datengxia_wSymbol == ' ':
+        am8_datengxia_wSymbol += '正常'
 
-    if latest_gg_wSymbol == ' ':
-        latest_gg_wSymbol += '正常'
+    if am8_guigang_wSymbol == ' ':
+        am8_guigang_wSymbol += '正常'
 
-    if latest_changzhou_wSymbol == ' ':
-        latest_changzhou_wSymbol += '正常'
+    if am8_changzhou_wSymbol == ' ':
+        am8_changzhou_wSymbol += '正常'
 
     rwC = "green"
     
@@ -637,11 +874,11 @@ def generate_html_report(data):
         hxS = '✅'
     if latest_luancheng_desc != '-':
         lcS = '✅'
-    if latest_changzhou_rkll != '-':
+    if am8_changzhou_rkll != '-':
         czS = '✅'
-    if latest_gg_rkll != '-':
+    if am8_guigang_rkll != '-':
         ggS = '✅'
-    if latest_datengxia_rkll != '-':
+    if am8_datengxia_rkll != '-':
         dtxS = '✅'
 
     # 添加状态显示区域
@@ -649,10 +886,14 @@ def generate_html_report(data):
         
         <div class="status-section">
             <div class="status-item">
-                <span class="status-label">上游整体情况：</span>
-                <span class="status-value status-red" style="font-size:35px">
-                    水位 调整中 &nbsp;整体 调整中 m &nbsp;&nbsp;
+                <span class="status-label">梧州实时水位（{latest_wuzhou_time}）：</span>
+                <span class="status-value status-{latest_wuzhou_color}">
+                    {latest_wuzhou_data}m&nbsp;
                 </span>
+                <span class="status-label">一小时变化：</span>
+                    <span class="status-value status-{latest_wuzhou_color}">
+                        {latest_wuzhou_change}m{latest_wuzhou_desc}
+                    </span> 
             </div>
             <div class="status-item">
                 <span class="status-label">今早八点梧州水位：</span>
@@ -665,9 +906,18 @@ def generate_html_report(data):
                 </span> 
             </div>
             <div class="status-item">
-                <span class="status-label">近2天梧州水位预报：</span>
+                <span class="status-label">整体情况：</span>
+                <span class="status-value status-blue">
+                    共{latest_stationNumber}个测站&nbsp;
+                </span>
                 <span class="status-value status-red">
-                    调整中 m~ 调整中 m      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;   预计水位 调整中 
+                    {latest_warningNumber}个测站超警&nbsp;
+                </span>
+                <span class="status-value status-wRed">
+                    {latest_upNumber}个测站涨水&nbsp;
+                </span>
+                <span class="status-value status-wGreen">
+                    {latest_downNumber}个测站落水&nbsp;
                 </span>
             </div>
         </div>
@@ -711,33 +961,45 @@ def generate_html_report(data):
             <div class="image-overlay-text" style="position: absolute; top: 20%; left: 8.6%;font-size:200%">{latest_laibing_wSymbol}</div>
             <div class="image-overlay-text" style="position: absolute; top: 65%; left: 12%;font-size:200%">{latest_luancheng_wSymbol}</div>
             <div class="image-overlay-text" style="position: absolute; top: 65%; left: 45%;font-size:200%">{latest_hx_wSymbol}</div>
-            <div class="image-overlay-text" style="position: absolute;top: 17%;left: 53.75%;font-size: 180%;writing-mode: vertical-rl;text-orientation: mixed;justify-content: center;align-items: center;display: flex;height: 20%;color:blue">{latest_datengxia_wSymbol}</div>
-            <div class="image-overlay-text" style="position: absolute; top: 59.9%;left: 56.1%;font-size: 180%;writing-mode: vertical-rl;text-orientation: mixed;justify-content: center;align-items: center;display: flex;height: 20%;color:blue">{latest_gg_wSymbol}</div>
-            <div class="image-overlay-text" style="position: absolute; top: 39%; left: 79%;font-size: 180%;writing-mode: vertical-rl;text-orientation: mixed;justify-content: center;align-items: center;display: flex; height: 20%;color:blue">{latest_changzhou_wSymbol}</div>
-            <div class="image-overlay-text status-{latest_datengxia_color}" style="position: absolute;top: -0.5%;left: 53.8%;font-size: 180%;">{latest_datengxia_data}m</div>
-            <div class="image-overlay-text status-{latest_datengxia_color}" style="position: absolute;top: 19%;left: 62%;font-size: 100%;">入库流量: {latest_datengxia_rkll}m³</div>
-            <div class="image-overlay-text status-{latest_datengxia_color}" style="position: absolute;top: 39%;left: 51%;font-size: 100%;">出库流量: {latest_datengxia_ckll}m³</div>
-            <div class="image-overlay-text status-{latest_gg_color}" style="position: absolute;top: 88%;left: 56%;font-size: 180%;">{latest_gg_data}m</div>
-            <div class="image-overlay-text status-{latest_gg_color}" style="position: absolute;top: 80%;left: 66.5%;font-size: 100%;">入库流量: {latest_gg_rkll}m³</div>
-            <div class="image-overlay-text status-{latest_gg_color}" style="position: absolute;top: 86%;left: 66.5%;font-size: 100%;">出库流量: {latest_gg_ckll}m³</div>
-            <div class="image-overlay-text status-{latest_changzhou_color}" style="position: absolute;top: 3%;left: 79%;font-size: 180%;">{latest_changzhou_data}m</div>
-            <div class="image-overlay-text status-{latest_changzhou_color}" style="position: absolute;top: 12.5%;left: 86.5%;font-size: 100%;">入库流量: {latest_changzhou_rkll}m³</div>
-            <div class="image-overlay-text status-{latest_changzhou_color}" style="position: absolute;top: 18%;left: 86.5%;font-size: 100%;">出库流量: {latest_changzhou_ckll}m³</div>
+            <div class="image-overlay-text" style="position: absolute;top: 17%;left: 53.75%;font-size: 180%;writing-mode: vertical-rl;text-orientation: mixed;justify-content: center;align-items: center;display: flex;height: 20%;color:blue">{am8_datengxia_wSymbol}</div>
+            <div class="image-overlay-text" style="position: absolute; top: 59.9%;left: 56.1%;font-size: 180%;writing-mode: vertical-rl;text-orientation: mixed;justify-content: center;align-items: center;display: flex;height: 20%;color:blue">{am8_guigang_wSymbol}</div>
+            <div class="image-overlay-text" style="position: absolute; top: 39%; left: 79%;font-size: 180%;writing-mode: vertical-rl;text-orientation: mixed;justify-content: center;align-items: center;display: flex; height: 20%;color:blue">{am8_changzhou_wSymbol}</div>
+            <div class="image-overlay-text status-{am8_datengxia_color}" style="position: absolute;top: -0.5%;left: 53.8%;font-size: 180%;">{am8_datengxia_data}m</div>
+            <div class="image-overlay-text status-{am8_datengxia_color}" style="position: absolute;top: 19%;left: 62%;font-size: 100%;">入库流量: {am8_datengxia_rkll}m³</div>
+            <div class="image-overlay-text status-{am8_datengxia_color}" style="position: absolute;top: 39%;left: 51%;font-size: 100%;">出库流量: {am8_datengxia_ckll}m³</div>
+            <div class="image-overlay-text status-{am8_guigang_color}" style="position: absolute;top: 88%;left: 56%;font-size: 180%;">{am8_guigang_data}m</div>
+            <div class="image-overlay-text status-{am8_guigang_color}" style="position: absolute;top: 80%;left: 66.5%;font-size: 100%;">入库流量: {am8_guigang_rkll}m³</div>
+            <div class="image-overlay-text status-{am8_guigang_color}" style="position: absolute;top: 86%;left: 66.5%;font-size: 100%;">出库流量: {am8_guigang_ckll}m³</div>
+            <div class="image-overlay-text status-{am8_changzhou_color}" style="position: absolute;top: 3%;left: 79%;font-size: 180%;">{am8_changzhou_data}m</div>
+            <div class="image-overlay-text status-{am8_changzhou_color}" style="position: absolute;top: 12.5%;left: 86.5%;font-size: 100%;">入库流量: {am8_changzhou_rkll}m³</div>
+            <div class="image-overlay-text status-{am8_changzhou_color}" style="position: absolute;top: 18%;left: 86.5%;font-size: 100%;">出库流量: {am8_changzhou_ckll}m³</div>
             <img src="river.jpg" alt="西江流域图">
         </div>
         <div class="cc">
             <span style="color:#414141; font-size:120%"> 站点数据是否获取 </span> <span class="cc" style="font-size:75%">&nbsp;&nbsp;&nbsp;&nbsp;已获取到数据 </span><span class="c-c" style="font-size:75%">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;未获取到数据</span> <br>
             <div style="display: flex; justify-content:space-between; align-items: center;">
-                <span class="c{latest_wuzhou_desc}c">&nbsp;&nbsp;{wzS}梧州</span><span class="c{latest_mengjiang_desc}c">{mjS}濛江</span><span class="c{latest_hx_desc}c">{hxS}横县</span><span class="c{latest_luancheng_desc}c">{lcS}峦城</span><span class="c{latest_wuxuan_desc}c">{wxS}武宣</span><span class="c{latest_laibing_desc}c">{lbS}来宾</span><span class="c{latest_changzhou_rkll}c">{czS}长洲枢纽</span><span class="c{latest_datengxia_rkll}c">{dtxS}大藤峡枢纽</span><span class="c{latest_gg_rkll}c">{ggS}贵港枢纽&nbsp;&nbsp;</span>
+                <span class="c{latest_wuzhou_desc}c">&nbsp;&nbsp;{wzS}梧州</span><span class="c{latest_mengjiang_desc}c">{mjS}濛江</span><span class="c{latest_hx_desc}c">{hxS}横县</span><span class="c{latest_luancheng_desc}c">{lcS}峦城</span><span class="c{latest_wuxuan_desc}c">{wxS}武宣</span><span class="c{latest_laibing_desc}c">{lbS}来宾</span><span class="c{am8_changzhou_rkll}c">{czS}长洲枢纽</span><span class="c{am8_datengxia_rkll}c">{dtxS}大藤峡枢纽</span><span class="c{am8_guigang_rkll}c">{ggS}贵港枢纽&nbsp;&nbsp;</span>
             </div>
         </div>
 
 """
 
-    # 准备图表数据 - 只显示最新的14条记录
-    chart_data = sorted_data[-14:] if len(sorted_data) > 14 else sorted_data
-    labels = [record['时间'] for record in chart_data]
-    stations = ['梧州', '濛江', '横县', '武宣', '来宾', '峦城']
+    # 准备图表数据 - 只显示最新的14条记录 只要实时水位的变化图（先看最近14小时内的）
+    chart_data = realtime_history[-14:] if len(realtime_history) > 14 else realtime_history
+    # 横坐标取数据时间（TM字段，格式如 "11-24 09:00"），转换为 "24日09:00" 的格式
+    labels = []
+    for record in chart_data:
+        rt_data = record.get('站点实时数据', {})
+        # 取第一个站点的 TM 作为数据时间（6个站点时间一致）
+        first_station = next(iter(rt_data.values()), {})
+        tm = first_station.get('TM', '')
+        # "11-24 09:00" -> "24日09:00"
+        match = re.match(r'\d{2}-(\d{2})\s+(\d{2}:\d{2})', str(tm))
+        if match:
+            labels.append(f"{match.group(1)}日{match.group(2)}")
+        else:
+            labels.append(str(tm))
+    stations = ['梧州', '平南', '贵港', '武宣', '来宾', '南宁']
     colors = [
         'rgb(255, 99, 132)',
         'rgb(54, 162, 235)',
@@ -751,8 +1013,8 @@ def generate_html_report(data):
     for i, station in enumerate(stations):
         water_levels = []
         for record in chart_data:
-            station_data = record.get('站点数据', {})
-            water_level = station_data.get(station, {}).get('水位', 0)
+            station_data = record.get('站点实时数据', {})
+            water_level = station_data.get(station, {}).get('Z', 0)
             # 尝试转换为浮点数，如果失败则使用0
             try:
                 water_levels.append(float(water_level))
@@ -790,7 +1052,7 @@ def generate_html_report(data):
                 plugins: {{
                     title: {{
                         display: true,
-                        text: '各站点水位变化趋势图 (最近{len(chart_data)}天)',
+                        text: '各站点水位变化趋势图 (最近{len(chart_data)}小时)',
                         font: {{
                             size: 18
                         }}
@@ -869,26 +1131,18 @@ def parse_water_level_data(html_content, publish_date):
                     # 将变化值转换为数字：1表示上升，0表示持平或下降
                     try:
                         change_num = float(change_value)
-                        if change_num > 0 and change_num < 2:
+                        if change_num > 0 :
                             change_value_num = 1  # 上升
                             change_des = "▲"
-                            color = "red"
-                        elif change_num >= 2:
-                            change_value_num = 1  # 大幅上升
-                            change_des = "⏫︎"
-                            color = "red"
-                        elif change_num <= 0 and change_num > -2:
+                            color = "wRed"
+                        elif change_num <= 0 :
                             change_value_num = 0  # 持平或下降
                             change_des = "▼"
-                            color = "blue"
-                        else:
-                            change_value_num = 0  # 大幅下降
-                            change_des = "⏬︎"
-                            color = "blue"
+                            color = "wGreen"
                     except (ValueError, TypeError):
                         change_value_num = 0  # 无法解析时默认为0
                         change_des = "▼"
-                        color = "blue"
+                        color = "wGreen"
 
                     # 组合完整日期时间
                     full_datetime = f"{publish_date} {observation_time}"
@@ -1068,6 +1322,21 @@ def main():
     if sys.platform == 'win32':
         import io
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+    # ============================================================
+    # 第一步：爬取实时水情数据（广西水利厅 API）
+    # ============================================================
+    print("\n" + "=" * 60)
+    print("开始爬取实时水情数据...")
+    print("=" * 60)
+    realtime_main()
+
+    # ============================================================
+    # 第二步：爬取早八点水情数据 + 水库数据（广西港航局网站）
+    # ============================================================
+    print("\n" + "=" * 60)
+    print("开始爬取早八点水情及水库数据...")
+    print("=" * 60)
 
     # 设置请求头，模拟浏览器访问
     headers = {
