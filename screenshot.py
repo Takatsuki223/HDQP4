@@ -348,7 +348,7 @@ def generate_html_report(data):
             color: #fe2d2d;
         }}
         .status-orange {{
-            color: #f3a533;
+            color: #ff8400;
         }}
         .status-blue {{
             color: #007bff;
@@ -465,7 +465,7 @@ def generate_html_report(data):
         am8_changzhou_ckll = sorted_data[-1].get('枢纽数据',{}).get('长洲船闸', {}).get('出库流量', '0')
 
         #因为实时数据要和早八点数据分开，所以单独取出早八点数据新建变量
-        am8_wuzhou_color = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('颜色', 'black')
+        am8_wuzhou_wcolor = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('颜色', 'black')
         am8_wuzhou_desc = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('情况', '-')
         am8_wuzhou_data = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('水位', '0')
         am8_wuzhou_change = sorted_data[-1].get('站点数据',{}).get('梧州', {}).get('变化值', '0')        
@@ -479,38 +479,38 @@ def generate_html_report(data):
         latest_wuzhou_data = rt.get('梧州', {}).get('Z', '0')
         latest_wuzhou_change = rt.get('梧州', {}).get('变化值', '0')
         latest_wuzhou_overWarning = rt.get('梧州', {}).get('ZWRNDLT', '-99')
-        latest_wuzhou_color = rt.get('梧州', {}).get('颜色', 'black')
+        latest_wuzhou_wcolor = rt.get('梧州', {}).get('颜色', 'black')
         latest_wuzhou_desc = rt.get('梧州', {}).get('情况', '-')
 
-        latest_mengjiang_data = rt.get('平南', {}).get('Z', '0')
-        latest_mengjiang_change = rt.get('平南', {}).get('变化值', '0')
-        latest_mengjiang_overWarning = rt.get('平南', {}).get('ZWRNDLT', '-99')
-        latest_mengjiang_color = rt.get('平南', {}).get('颜色', 'black')
-        latest_mengjiang_desc = rt.get('平南', {}).get('情况', '-')
+        latest_pn_data = rt.get('平南', {}).get('Z', '0')
+        latest_pn_change = rt.get('平南', {}).get('变化值', '0')
+        latest_pn_overWarning = rt.get('平南', {}).get('ZWRNDLT', '-99')
+        latest_pn_wcolor = rt.get('平南', {}).get('颜色', 'black')
+        latest_pn_desc = rt.get('平南', {}).get('情况', '-')
 
         latest_wuxuan_data = rt.get('武宣', {}).get('Z', '0')
         latest_wuxuan_change = rt.get('武宣', {}).get('变化值', '0')
         latest_wuxuan_overWarning = rt.get('武宣', {}).get('ZWRNDLT', '-99')
-        latest_wuxuan_color = rt.get('武宣', {}).get('颜色', 'black')
+        latest_wuxuan_wcolor = rt.get('武宣', {}).get('颜色', 'black')
         latest_wuxuan_desc = rt.get('武宣', {}).get('情况', '-')
 
         latest_laibing_data = rt.get('来宾', {}).get('Z', '0')
         latest_laibing_change = rt.get('来宾', {}).get('变化值', '0')
         latest_laibing_overWarning = rt.get('来宾', {}).get('ZWRNDLT', '-99')
-        latest_laibing_color = rt.get('来宾', {}).get('颜色', 'black')
+        latest_laibing_wcolor = rt.get('来宾', {}).get('颜色', 'black')
         latest_laibing_desc = rt.get('来宾', {}).get('情况', '-')
 
-        latest_luancheng_data = rt.get('南宁', {}).get('Z', '0')
-        latest_luancheng_change = rt.get('南宁', {}).get('变化值', '0')
-        latest_luancheng_overWarning = rt.get('南宁', {}).get('ZWRNDLT', '-99')
-        latest_luancheng_color = rt.get('南宁', {}).get('颜色', 'black')
-        latest_luancheng_desc = rt.get('南宁', {}).get('情况', '-')
+        latest_nn_data = rt.get('南宁', {}).get('Z', '0')
+        latest_nn_change = rt.get('南宁', {}).get('变化值', '0')
+        latest_nn_overWarning = rt.get('南宁', {}).get('ZWRNDLT', '-99')
+        latest_nn_wcolor = rt.get('南宁', {}).get('颜色', 'black')
+        latest_nn_desc = rt.get('南宁', {}).get('情况', '-')
 
-        latest_hx_data = rt.get('贵港', {}).get('Z', '0')
-        latest_hx_change = rt.get('贵港', {}).get('变化值', '0')
-        latest_hx_overWarning = rt.get('贵港', {}).get('ZWRNDLT', '-99')
-        latest_hx_color = rt.get('贵港', {}).get('颜色', 'black')
-        latest_hx_desc = rt.get('贵港', {}).get('情况', '-')
+        latest_gg_data = rt.get('贵港', {}).get('Z', '0')
+        latest_gg_change = rt.get('贵港', {}).get('变化值', '0')
+        latest_gg_overWarning = rt.get('贵港', {}).get('ZWRNDLT', '-99')
+        latest_gg_wcolor = rt.get('贵港', {}).get('颜色', 'black')
+        latest_gg_desc = rt.get('贵港', {}).get('情况', '-')
 
         latest_stationNumber = realtime_history[-1].get('统计信息', {}).get('站点总数', '0')
         latest_warningNumber = realtime_history[-1].get('统计信息', {}).get('超警戒线数', '0')
@@ -523,57 +523,106 @@ def generate_html_report(data):
 
     #站点是否需要警告符号
     latest_wuzhou_wSymbol = ' '
-    latest_mengjiang_wSymbol = ' '
+    latest_pn_wSymbol = ' '
     latest_wuxuan_wSymbol = ' '
     latest_laibing_wSymbol = ' '
-    latest_luancheng_wSymbol = ' '
-    latest_hx_wSymbol = ' '
+    latest_nn_wSymbol = ' '
+    latest_gg_wSymbol = ' '
+
+    #站点水位状态标识颜色
+    latest_wuzhou_color = 'blue'
+    latest_pn_color = 'blue'
+    latest_wuxuan_color = 'blue'
+    latest_laibing_color = 'blue'
+    latest_nn_color = 'blue'
+    latest_gg_color = 'blue'
+    am8_wuzhou_color = 'blue'
+
+    #梧州情况语句
+    am8_wuzhou_QK = ''
+    latest_wuzhou_QK = ''
+
+
+    #早八点梧州水位状态判定
+    if float(am8_wuzhou_data) >= 18.5: #早八点梧州水位大于18.5米
+        am8_wuzhou_color = 'red'
+        am8_wuzhou_QK += '<span class="status-red">超警&nbsp;</span>'
+
+    if float(am8_wuzhou_data) >= 13 and float(am8_wuzhou_data) < 18.5: #早八点梧州水位较高
+        am8_wuzhou_color = 'orange'
+        am8_wuzhou_QK += '<span class="status-orange">水位高&nbsp;</span>'
+
+    if float(am8_wuzhou_change) >= 2:    #早八点梧州水位快速上涨
+        am8_wuzhou_color = 'red'
+        am8_wuzhou_QK += '<span class="status-red">快速涨水&nbsp;</span>'
+
+    if float(am8_wuzhou_data) < 4 and float(am8_wuzhou_data) >= 2.5:    #早八点梧州水位在4米到2.5之间
+        am8_wuzhou_color = 'orange'
+        am8_wuzhou_QK += '<span class="status-orange">水位较低&nbsp;</span>'
+
+
+    if float(am8_wuzhou_data) < 2.5 and float(am8_wuzhou_data) >= 2:    #早八点梧州水位较低（<2.5m >2m 预留警告语句）
+        am8_wuzhou_color = 'red'
+        am8_wuzhou_QK += '<span class="status-red">水位低(<2.5m)&nbsp;</span>'
+
+    if float(am8_wuzhou_data) < 2:   #早八点梧州水位较低（<2m 预留警告语句）
+        am8_wuzhou_color = 'red'
+        am8_wuzhou_QK += '<span class="status-red">水位极低(<2m)&nbsp;</span>'
+
+    if am8_wuzhou_QK == '':   #如果没有任何情况 只显示正常
+        am8_wuzhou_QK += '<span class="status-blue">水位正常&nbsp;</span>'
 
     #站点是否需要超警戒线警告
     s1 = 0
     if float(latest_wuzhou_overWarning) >= 0:  #梧州警戒线18.5
         latest_wuzhou_wSymbol = '🚨'
+        latest_wuzhou_color = 'red'
+        latest_wuzhou_QK += '<span class="status-red">超警&nbsp;</span>'
         station_warning += '<br> &nbsp;'
         station_warning += '梧州（已超警'
         station_warning += str(format(float(latest_wuzhou_overWarning)), '.2f')
         station_warning += '米）'
         s1 = 1
 
-    if float(latest_mengjiang_overWarning) >= 0:  #平南警戒线29 濛江25，藤县23
-        latest_mengjiang_wSymbol = '🚨'
+    if float(latest_pn_overWarning) >= 0:  #平南警戒线29 濛江25，藤县23
+        latest_pn_wSymbol = '🚨'
+        latest_pn_color = 'red'
         if s1 != 0:
             station_warning += '、'
         else:
             station_warning += '<br> &nbsp;'
         station_warning += '濛江（已超警'
-        station_warning += str(format(float(latest_mengjiang_overWarning)), '.2f')
+        station_warning += str(format(float(latest_pn_overWarning)), '.2f')
         station_warning += '米）'
         s1 = 1
 
-    if float(latest_hx_overWarning) >= 0:  #贵港坝下警戒线41.2米 横县警戒线54.2米
-        latest_hx_wSymbol = '🚨'
+    if float(latest_gg_overWarning) >= 0:  #贵港坝下警戒线41.2米 横县警戒线54.2米
+        latest_gg_wSymbol = '🚨'
+        latest_gg_color = 'red'
         if s1 != 0:
             station_warning += '、'
         else:
             station_warning += '<br> &nbsp;'
         station_warning += '横县（已超警'
-        station_warning += str(format(float(latest_hx_overWarning)), '.2f')
+        station_warning += str(format(float(latest_gg_overWarning)), '.2f')
         station_warning += '米）'
         s1 = 1
 
-    if float(latest_luancheng_overWarning) >= 0:     #南宁警戒线73 峦城64.2米
-        latest_luancheng_wSymbol = '🚨'
+    if float(latest_nn_overWarning) >= 0:     #南宁警戒线73 峦城64.2米
+        latest_nn_wSymbol = '🚨'
+        latest_nn_color = 'red'
         if s1 != 0:
             station_warning += '、'
         else:
             station_warning += '<br> &nbsp;'
         station_warning += '峦城（已超警'
-        station_warning += str(format(float(latest_luancheng_overWarning)), '.2f')
+        station_warning += str(format(float(latest_nn_overWarning)), '.2f')
         station_warning += '米）'
         s1 = 1
 
     if float(latest_wuxuan_overWarning) >= 62:  #武宣警戒线62
         latest_wuxuan_wSymbol = '🚨'
+        latest_wuxuan_color = 'red'
         if s1 != 0:
             station_warning += '、'
         else:
@@ -585,6 +634,7 @@ def generate_html_report(data):
 
     if float(latest_laibing_overWarning) >= 77.9:  #来宾警戒线77.4
         latest_laibing_wSymbol = '🚨'
+        latest_laibing_color = 'red'
         if s1 != 0:
             station_warning += '、'
         else:
@@ -600,11 +650,14 @@ def generate_html_report(data):
     s2 = 0
     if float(latest_wuzhou_data) >= 13 and float(latest_wuzhou_data) < 18.5:
         latest_wuzhou_wSymbol = '⚠️'
+        latest_wuzhou_color = 'orange'
+        latest_wuzhou_QK += '<span class="status-orange">水位高&nbsp;</span>'
         station_warning += '<br> &nbsp;'
         station_warning += '梧州（水位已超过13米）'
 
-    if float(latest_mengjiang_data) >= 25 and float(latest_mengjiang_data) < 28:
-        latest_mengjiang_wSymbol = '⚠️'
+    if float(latest_pn_data) >= 25 and float(latest_pn_data) < 28:
+        latest_pn_wSymbol = '⚠️'
+        latest_pn_color = 'orange'
         if s2 != 0:
             station_warning += '、'
         else:
@@ -618,12 +671,15 @@ def generate_html_report(data):
     s3 = 0
     if float(latest_wuzhou_change) > 0.2:
         latest_wuzhou_wSymbol = '🚨'
+        latest_wuzhou_color = 'red'
+        latest_wuzhou_QK += '<span class="status-red">快速涨水&nbsp;</span>'
         station_warning += '<br> &nbsp;'
         station_warning += '梧州'
         s3 = 1
 
-    if float(latest_mengjiang_change) > 0.2:
-        latest_mengjiang_wSymbol = '🚨'
+    if float(latest_pn_change) > 0.2:
+        latest_pn_wSymbol = '🚨'
+        latest_pn_color = 'red'
         if s3 != 0:
             station_warning += '、'
         else:
@@ -633,6 +689,7 @@ def generate_html_report(data):
 
     if float(latest_wuxuan_change) > 0.2:
         latest_wuxuan_wSymbol = '🚨'
+        latest_wuxuan_color = 'red'
         if s3 != 0:
             station_warning += '、'
         else:
@@ -642,6 +699,7 @@ def generate_html_report(data):
 
     if float(latest_laibing_change) > 0.2:
         latest_laibing_wSymbol = '🚨'
+        latest_laibing_color = 'red'
         if s3 != 0:
             station_warning += '、'
         else:
@@ -649,8 +707,9 @@ def generate_html_report(data):
         station_warning += '来宾'
         s3 = 1
 
-    if float(latest_luancheng_change) > 0.2:
-        latest_luancheng_wSymbol = '🚨'
+    if float(latest_nn_change) > 0.2:
+        latest_nn_wSymbol = '🚨'
+        latest_nn_color = 'red'
         if s3 != 0:
             station_warning += '、'
         else:
@@ -658,8 +717,9 @@ def generate_html_report(data):
         station_warning += '峦城'
         s3 = 1
 
-    if float(latest_hx_change) > 0.2:
-        latest_hx_wSymbol = '🚨'
+    if float(latest_gg_change) > 0.2:
+        latest_gg_wSymbol = '🚨'
+        latest_gg_color = 'red'
         if s3 != 0:
             station_warning += '、'
         else:
@@ -673,6 +733,8 @@ def generate_html_report(data):
     #梧州是否需要水位过低警告
     if float(latest_wuzhou_data) < 4:
         latest_wuzhou_wSymbol = '⚠️'
+        latest_wuzhou_QK += '<span class="status-orange">水位较低&nbsp;</span>'
+        latest_wuzhou_color = 'orange'
         station_warning += '<br> &nbsp;'
         station_warning += '梧州水位过低，可能影响船舶通航！'
 
@@ -683,6 +745,9 @@ def generate_html_report(data):
         swC = "red"
     else:
         station_warning += '无预警信息'
+
+    if latest_wuzhou_QK == ' ':
+        latest_wuzhou_QK += '<span class="status-blue">水位正常&nbsp;</span>'
 
     #水库预警文字
     reservoir_warning = ' '
@@ -853,31 +918,31 @@ def generate_html_report(data):
 
     #各站点是否获取数据标识
     wzS = '❎︎'
-    mjS = '❎︎'
+    pnS = '❎︎'
     wxS = '❎︎'
     lbS = '❎︎'
-    hxS = '❎︎'
-    lcS = '❎︎'
-    czS = '❎︎'
     ggS = '❎︎'
+    nnS = '❎︎'
+    czS = '❎︎'
+    GgS = '❎︎'
     dtxS = '❎︎'
 
     if latest_wuzhou_desc != '-':
         wzS = '✅'
-    if latest_mengjiang_desc != '-':
-        mjS = '✅'
+    if latest_pn_desc != '-':
+        pnS = '✅'
     if latest_wuxuan_desc != '-':
         wxS = '✅'
     if latest_laibing_desc != '-':
         lbS = '✅'
-    if latest_hx_desc != '-':
-        hxS = '✅'
-    if latest_luancheng_desc != '-':
-        lcS = '✅'
+    if latest_gg_desc != '-':
+        ggS = '✅'
+    if latest_nn_desc != '-':
+        nnS = '✅'
     if am8_changzhou_rkll != '-':
         czS = '✅'
     if am8_guigang_rkll != '-':
-        ggS = '✅'
+        GgS = '✅'
     if am8_datengxia_rkll != '-':
         dtxS = '✅'
 
@@ -887,37 +952,45 @@ def generate_html_report(data):
         <div class="status-section">
             <div class="status-item">
                 <span class="status-label">梧州实时水位（{latest_wuzhou_time}）：</span>
-                <span class="status-value status-{latest_wuzhou_color}">
-                    {latest_wuzhou_data}m&nbsp;
-                </span>
-                <span class="status-label">一小时变化：</span>
                     <span class="status-value status-{latest_wuzhou_color}">
-                        {latest_wuzhou_change}m{latest_wuzhou_desc}
-                    </span> 
+                        {latest_wuzhou_data}m&nbsp;
+                    </span>
+                <span class="status-label">一小时变化：</span>
+                    <span class="status-value status-{latest_wuzhou_wcolor}">
+                        {latest_wuzhou_change}m{latest_wuzhou_desc}&nbsp;
+                    </span>
+                <span class="status-label">实时水位状态：</span>
+                    <span class="status-value">
+                        {latest_wuzhou_QK}
+                    </span>
             </div>
             <div class="status-item">
                 <span class="status-label">今早八点梧州水位：</span>
-                <span class="status-value status-{am8_wuzhou_color}">
-                    {am8_wuzhou_data}m&nbsp;
-                </span>
+                    <span class="status-value status-{am8_wuzhou_color}">
+                        {am8_wuzhou_data}m&nbsp;
+                    </span>
                 <span class="status-label">较昨日变化：</span>
-                <span class="status-value status-{am8_wuzhou_color}">
-                    {am8_wuzhou_change}m{am8_wuzhou_desc}
-                </span> 
+                    <span class="status-value status-{am8_wuzhou_wcolor}">
+                        {am8_wuzhou_change}m{am8_wuzhou_desc}
+                    </span> 
+                <span class="status-label">早八点状态：</span>
+                    <span class="status-value">
+                        {am8_wuzhou_QK}
+                    </span>
             </div>
             <div class="status-item">
                 <span class="status-label">整体情况：</span>
-                <span class="status-value status-blue">
-                    共{latest_stationNumber}个测站&nbsp;
+                <span class="status-value status-blue" style="font-size:50px;">
+                    {latest_stationNumber} <span style="font-size:25px;">个测站&nbsp;&nbsp;&nbsp;</span>
                 </span>
-                <span class="status-value status-red">
-                    {latest_warningNumber}个测站超警&nbsp;
+                <span class="status-value status-red" style="font-size:50px;">
+                    {latest_warningNumber} <span style="font-size:25px;">站超警&nbsp;&nbsp;&nbsp;</span>
                 </span>
-                <span class="status-value status-wRed">
-                    {latest_upNumber}个测站涨水&nbsp;
+                <span class="status-value status-wRed" style="font-size:50px;">
+                    {latest_upNumber} <span style="font-size:25px;">站涨水&nbsp;&nbsp;&nbsp;</span>
                 </span>
-                <span class="status-value status-wGreen">
-                    {latest_downNumber}个测站落水&nbsp;
+                <span class="status-value status-wGreen" style="font-size:50px;">
+                    {latest_downNumber} <span style="font-size:25px;">站落水&nbsp;&nbsp;&nbsp;</span>
                 </span>
             </div>
         </div>
@@ -938,29 +1011,29 @@ def generate_html_report(data):
         
         <div class="image-section">
             <div class="image-overlay-text status-{latest_wuzhou_color}" style="position: absolute; top: 52%; left: 92.5%; font-size:200%;">{latest_wuzhou_data}m</div>
-            <div class="image-overlay-text status-{latest_wuzhou_color}" style="position: absolute; top: 62%; left: 92.5%; font-size:150%;">{latest_wuzhou_change}m{latest_wuzhou_desc}</div>
-            <div class="image-overlay-text status-{latest_wuzhou_color}" style="position: absolute;top: 41.25%;left: 86%;">====</div>
-            <div class="image-overlay-text status-{latest_mengjiang_color}" style="position: absolute; top: 52%; left: 68%; font-size:200%;">{latest_mengjiang_data}m</div>
-            <div class="image-overlay-text status-{latest_mengjiang_color}" style="position: absolute; top: 62%; left: 68%; font-size:150%;">{latest_mengjiang_change}m{latest_mengjiang_desc}</div>
-            <div class="image-overlay-text status-{latest_mengjiang_color}" style="position: absolute; top: 41.4%; left: 63.85%;">==</div>
+            <div class="image-overlay-text status-{latest_wuzhou_wcolor}" style="position: absolute; top: 62%; left: 92.5%; font-size:150%;">{latest_wuzhou_change}m{latest_wuzhou_desc}</div>
+            <div class="image-overlay-text status-{latest_wuzhou_wcolor}" style="position: absolute;top: 41.25%;left: 86%;">====</div>
+            <div class="image-overlay-text status-{latest_pn_color}" style="position: absolute; top: 52%; left: 68%; font-size:200%;">{latest_pn_data}m</div>
+            <div class="image-overlay-text status-{latest_pn_wcolor}" style="position: absolute; top: 62%; left: 68%; font-size:150%;">{latest_pn_change}m{latest_pn_desc}</div>
+            <div class="image-overlay-text status-{latest_pn_wcolor}" style="position: absolute; top: 41.4%; left: 63.85%;">==</div>
             <div class="image-overlay-text status-{latest_wuxuan_color}" style="position: absolute; top: 12%; left: 39%; font-size:200%;">{latest_wuxuan_data}m</div>
-            <div class="image-overlay-text status-{latest_wuxuan_color}" style="position: absolute; top: 6%; left: 39%; font-size:150%;">{latest_wuxuan_change}m{latest_wuxuan_desc}</div>
-            <div class="image-overlay-text status-{latest_wuxuan_color}" style="position: absolute; top: 18.9%; left: 23.2%;">===========</div>
+            <div class="image-overlay-text status-{latest_wuxuan_wcolor}" style="position: absolute; top: 6%; left: 39%; font-size:150%;">{latest_wuxuan_change}m{latest_wuxuan_desc}</div>
+            <div class="image-overlay-text status-{latest_wuxuan_wcolor}" style="position: absolute; top: 18.9%; left: 23.2%;">===========</div>
             <div class="image-overlay-text status-{latest_laibing_color}" style="position: absolute; top: 12%; left: 9%; font-size:200%;">{latest_laibing_data}m</div>
-            <div class="image-overlay-text status-{latest_laibing_color}" style="position: absolute; top: 6%; left: 9%; font-size:150%;">{latest_laibing_change}m{latest_laibing_desc}</div>
-            <div class="image-overlay-text status-{latest_laibing_color}" style="position: absolute; top: 18.9%; left: 4%;">===</div>
-            <div class="image-overlay-text status-{latest_luancheng_color}" style="position: absolute; top: 57%; left: 13%; font-size:200%;">{latest_luancheng_data}m</div>
-            <div class="image-overlay-text status-{latest_luancheng_color}" style="position: absolute; top: 51%; left: 13%; font-size:150%;">{latest_luancheng_change}m{latest_luancheng_desc}</div>
-            <div class="image-overlay-text status-{latest_luancheng_color}" style="position: absolute; top: 63.8%; left: 6%;">====</div>
-            <div class="image-overlay-text status-{latest_hx_color}" style="position: absolute; top: 57%; left: 46%; font-size:200%;">{latest_hx_data}m</div>
-            <div class="image-overlay-text status-{latest_hx_color}" style="position: absolute; top: 51%; left: 46%; font-size:150%;">{latest_hx_change}m{latest_hx_desc}</div>
-            <div class="image-overlay-text status-{latest_hx_color}" style="position: absolute; top: 63.8%; left: 28.5%;">============</div>
+            <div class="image-overlay-text status-{latest_laibing_wcolor}" style="position: absolute; top: 6%; left: 9%; font-size:150%;">{latest_laibing_change}m{latest_laibing_desc}</div>
+            <div class="image-overlay-text status-{latest_laibing_wcolor}" style="position: absolute; top: 18.9%; left: 4%;">===</div>
+            <div class="image-overlay-text status-{latest_nn_color}" style="position: absolute; top: 57%; left: 13%; font-size:200%;">{latest_nn_data}m</div>
+            <div class="image-overlay-text status-{latest_nn_wcolor}" style="position: absolute; top: 51%; left: 13%; font-size:150%;">{latest_nn_change}m{latest_nn_desc}</div>
+            <div class="image-overlay-text status-{latest_nn_wcolor}" style="position: absolute; top: 63.8%; left: 6%;">====</div>
+            <div class="image-overlay-text status-{latest_gg_color}" style="position: absolute; top: 57%; left: 46%; font-size:200%;">{latest_gg_data}m</div>
+            <div class="image-overlay-text status-{latest_gg_wcolor}" style="position: absolute; top: 51%; left: 46%; font-size:150%;">{latest_gg_change}m{latest_gg_desc}</div>
+            <div class="image-overlay-text status-{latest_gg_wcolor}" style="position: absolute; top: 63.8%; left: 28.5%;">============</div>
             <div class="image-overlay-text" style="position: absolute; top: 42.4%; left: 92.2%;font-size:200%">{latest_wuzhou_wSymbol}</div>
-            <div class="image-overlay-text" style="position: absolute; top: 42.4%; left: 66.9%;font-size:200%">{latest_mengjiang_wSymbol}</div>
+            <div class="image-overlay-text" style="position: absolute; top: 42.4%; left: 66.9%;font-size:200%">{latest_pn_wSymbol}</div>
             <div class="image-overlay-text" style="position: absolute; top: 20%; left: 37.9%;font-size:200%">{latest_wuxuan_wSymbol}</div>
             <div class="image-overlay-text" style="position: absolute; top: 20%; left: 8.6%;font-size:200%">{latest_laibing_wSymbol}</div>
-            <div class="image-overlay-text" style="position: absolute; top: 65%; left: 12%;font-size:200%">{latest_luancheng_wSymbol}</div>
-            <div class="image-overlay-text" style="position: absolute; top: 65%; left: 45%;font-size:200%">{latest_hx_wSymbol}</div>
+            <div class="image-overlay-text" style="position: absolute; top: 65%; left: 12%;font-size:200%">{latest_nn_wSymbol}</div>
+            <div class="image-overlay-text" style="position: absolute; top: 65%; left: 45%;font-size:200%">{latest_gg_wSymbol}</div>
             <div class="image-overlay-text" style="position: absolute;top: 17%;left: 53.75%;font-size: 180%;writing-mode: vertical-rl;text-orientation: mixed;justify-content: center;align-items: center;display: flex;height: 20%;color:blue">{am8_datengxia_wSymbol}</div>
             <div class="image-overlay-text" style="position: absolute; top: 59.9%;left: 56.1%;font-size: 180%;writing-mode: vertical-rl;text-orientation: mixed;justify-content: center;align-items: center;display: flex;height: 20%;color:blue">{am8_guigang_wSymbol}</div>
             <div class="image-overlay-text" style="position: absolute; top: 39%; left: 79%;font-size: 180%;writing-mode: vertical-rl;text-orientation: mixed;justify-content: center;align-items: center;display: flex; height: 20%;color:blue">{am8_changzhou_wSymbol}</div>
@@ -978,7 +1051,7 @@ def generate_html_report(data):
         <div class="cc">
             <span style="color:#414141; font-size:120%"> 站点数据是否获取 </span> <span class="cc" style="font-size:75%">&nbsp;&nbsp;&nbsp;&nbsp;已获取到数据 </span><span class="c-c" style="font-size:75%">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;未获取到数据</span> <br>
             <div style="display: flex; justify-content:space-between; align-items: center;">
-                <span class="c{latest_wuzhou_desc}c">&nbsp;&nbsp;{wzS}梧州</span><span class="c{latest_mengjiang_desc}c">{mjS}濛江</span><span class="c{latest_hx_desc}c">{hxS}横县</span><span class="c{latest_luancheng_desc}c">{lcS}峦城</span><span class="c{latest_wuxuan_desc}c">{wxS}武宣</span><span class="c{latest_laibing_desc}c">{lbS}来宾</span><span class="c{am8_changzhou_rkll}c">{czS}长洲枢纽</span><span class="c{am8_datengxia_rkll}c">{dtxS}大藤峡枢纽</span><span class="c{am8_guigang_rkll}c">{ggS}贵港枢纽&nbsp;&nbsp;</span>
+                <span class="c{latest_wuzhou_desc}c">&nbsp;&nbsp;{wzS}梧州</span><span class="c{latest_pn_desc}c">{pnS}平南</span><span class="c{latest_gg_desc}c">{ggS}贵港</span><span class="c{latest_nn_desc}c">{nnS}南宁</span><span class="c{latest_wuxuan_desc}c">{wxS}武宣</span><span class="c{latest_laibing_desc}c">{lbS}来宾</span><span class="c{am8_changzhou_rkll}c">{czS}长洲枢纽</span><span class="c{am8_datengxia_rkll}c">{dtxS}大藤峡枢纽</span><span class="c{am8_guigang_rkll}c">{GgS}贵港枢纽&nbsp;&nbsp;</span>
             </div>
         </div>
 
