@@ -8,6 +8,15 @@ import os
 import base64
 import sys
 
+
+def get_app_dir():
+    """获取程序所在目录（兼容 PyInstaller 打包后的 exe 环境）"""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(sys.executable)
+    else:
+        return os.path.dirname(os.path.abspath(__file__))
+
+
 # ============================================================
 # 实时水情数据相关（来源：广西水利厅API）
 # ============================================================
@@ -41,7 +50,7 @@ def realtime_fetch_water_data(st_name=""):
     url = REALTIME_API_URL + st_name
     print(f"正在请求实时水情API: {url}")
     try:
-        resp = requests.get(url, headers=REALTIME_HEADERS, timeout=60)
+        resp = requests.get(url, headers=REALTIME_HEADERS, timeout=120)
         resp.raise_for_status()
         data = resp.json()
         result = data.get("result", [])
@@ -93,7 +102,8 @@ def realtime_extract_fields(data):
 
 def realtime_load_existing(filename=REALTIME_JSON_FILE):
     """读取已有的实时 JSON 数据文件"""
-    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+    filepath = os.path.join(get_app_dir(), filename)
+    print(f"实时数据文件路径: {filepath}")
     if not os.path.exists(filepath):
         return []
     try:
@@ -148,7 +158,7 @@ def realtime_save_to_json(data, summary, existing, filename=REALTIME_JSON_FILE):
     if not data:
         print("无实时数据可保存")
         return
-    filepath = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
+    filepath = os.path.join(get_app_dir(), filename)
     data_time = ""
     first_tm = next(iter(data.values()), {}).get("TM", "")
     tm_str = str(first_tm) if first_tm else ""
@@ -183,10 +193,10 @@ def realtime_print_summary(data):
         tm = info.get("TM", "")
         delta = info.get("变化值")
         trend = info.get("情况", "")
-        z_str = f"{z:.2f}" if z is not None else "-"
-        zwrndlt_str = f"{zwrndlt:+.2f}" if zwrndlt is not None else "-"
+        z_str = f"{float(z):.2f}" if z is not None else "-"
+        zwrndlt_str = f"{float(zwrndlt):+.2f}" if zwrndlt is not None else "-"
         delta_str = delta if delta is not None else "-"
-        print(f"{name:<10} {z_str:>8} {zwrndlt_str:>10} {delta_str:>8} {trend:>4} {str(tm):<22}")
+        print(f"{name:<10} {z_str:>8} {zwrndlt_str:>10} {delta_str:>8} {trend:>4} {str(tm):<22}") #这一行报错
     print("=" * 70)
     over_warning = sum(1 for v in data.values() if v.get("ZWRNDLT") is not None and float(v["ZWRNDLT"]) > 0)
     rising = sum(1 for v in data.values() if v.get("变化") == 1)
@@ -215,10 +225,10 @@ def realtime_main():
     cleaned = realtime_extract_fields(filtered)
     existing = realtime_load_existing(REALTIME_JSON_FILE)
     if existing:
-        print(f"已有 {len(existing)} 批实时历史数据")
-    cleaned = realtime_calc_water_change(cleaned, existing)
-    summary = realtime_calc_summary(cleaned)
-    realtime_print_summary(cleaned)
+        print(f"已有 {len(existing)} 批实时历史数据")           #这句话不知道为什么没有输出  数据不存在？
+    cleaned = realtime_calc_water_change(cleaned, existing)   #
+    summary = realtime_calc_summary(cleaned)              
+    realtime_print_summary(cleaned)                           #执行到个函数 里边报错
     realtime_save_to_json(cleaned, summary, existing, REALTIME_JSON_FILE)
     print("\n实时水情爬取完成！")
     return cleaned
@@ -231,8 +241,9 @@ def realtime_main():
 
 def load_data():
     """从JSON文件加载历史数据"""
+    filepath = os.path.join(get_app_dir(), 'water_level_data.json')
     try:
-        with open('water_level_data.json', 'r', encoding='utf-8') as f:
+        with open(filepath, 'r', encoding='utf-8') as f:
             return json.load(f)
     except FileNotFoundError:
         return []
@@ -242,7 +253,8 @@ def load_data():
 
 def save_data(data):
     """保存数据到JSON文件"""
-    with open('water_level_data.json', 'w', encoding='utf-8') as f:
+    filepath = os.path.join(get_app_dir(), 'water_level_data.json')
+    with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 
@@ -1155,7 +1167,7 @@ def generate_html_report(data):
 </html>
 """
 
-    with open('water_level_report.html', 'w', encoding='utf-8') as f:
+    with open(os.path.join(get_app_dir(), 'water_level_report.html'), 'w', encoding='utf-8') as f:
         f.write(html_content)
 
 
@@ -1238,7 +1250,7 @@ def ocr_image(img_filename):
     """对图片进行OCR识别，返回识别结果"""
     ocr_url = "https://open.bigmodel.cn/api/paas/v4/layout_parsing"
 
-    with open(img_filename, "rb") as f:
+    with open(os.path.join(get_app_dir(), img_filename), "rb") as f:
         file_base64 = "data:image/png;base64," + base64.b64encode(f.read()).decode("utf-8")
 
     payload = {
@@ -1526,7 +1538,7 @@ def main():
 
                         try:
                             img_response = requests.get(img_url, headers=headers, timeout=30)
-                            with open(img_filename, 'wb') as f:
+                            with open(os.path.join(get_app_dir(), img_filename), 'wb') as f:
                                 f.write(img_response.content)
                             print(f"已下载贵港水情图片: {img_filename}")
 
