@@ -1,4 +1,4 @@
-# 水文数据查询程序4（Hydrological data query program3）
+# 水文数据查询程序4（Hydrological data query program4）
 
 - 一个基于**Python + BeautifulSoup + ECharts**的便携化河道水位数据爬取与可视化展示分析程序。  
 - 供**梧州仓码**同事使用，快速查询梧州航道水位信息，为船舶调度提供依据。
@@ -39,7 +39,7 @@
 ├── 水位数据爬取.exe            # 主程序，勿动！（爬取、解析、存储、生成报告）
 ├── water_level_data.json      # 水位与枢纽历史数据，勿动！（本地持久化存储）
 ├── realtime_water_level.json  # 水位与枢纽实时数据，勿动！（本地持久化存储）
-├── water_level_report.html    # 可视化分析报告，勿动，每次运行自动更新！（在这看报告）
+├── water_level_report.html    # 可视化分析报告，勿动！每次运行自动更新！（在这看报告）
 ├── river.jpg                  # 流域示意图，勿动！（报告内嵌图片）
 ├── guigang.png                # 贵港那边的下载图片 勿动！
 └── 使用说明(用前必看！).txt     # 打包后供同事查看的说明文档
