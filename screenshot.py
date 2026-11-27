@@ -1172,6 +1172,8 @@ def generate_html_report(data):
 
 
 def parse_water_level_data(html_content, publish_date):
+    #用于标记数据日期
+    Today_str1 = datetime.now().strftime('%Y%m%d')
     """解析水位数据"""
     soup = BeautifulSoup(html_content, 'html.parser')
 
@@ -1240,7 +1242,8 @@ def parse_water_level_data(html_content, publish_date):
                         '变化': change_value_num,
                         '情况': change_des,
                         '颜色': color,
-                        '时间': full_datetime
+                        '时间': full_datetime,
+                        '数据日期': Today_str1
                     }
 
     return results
@@ -1270,6 +1273,8 @@ def ocr_image(img_filename):
 
 
 def parse_ocr_reservoir_data(ocr_json_str, publish_date):
+    #用于标记数据日期
+    Today_str2 = datetime.now().strftime('%Y%m%d')
     """从OCR识别结果中解析水库/枢纽数据"""
     target_reservoirs = ['贵港枢纽', '大藤峡枢纽']
     results = {}
@@ -1329,7 +1334,8 @@ def parse_ocr_reservoir_data(ocr_json_str, publish_date):
                                 '上游水位': upstream_level,
                                 '入库流量': inflow,
                                 '出库流量': outflow,
-                                '是否放水': is_releasing
+                                '是否放水': is_releasing,
+                                '数据日期': Today_str2
                             }
                             print(f"OCR提取枢纽数据: {reservoir_name} 上游水位={upstream_level} 入库={inflow} 出库={outflow}")
 
@@ -1337,6 +1343,9 @@ def parse_ocr_reservoir_data(ocr_json_str, publish_date):
 
 
 def parse_reservoir_data(html_content, publish_date):
+    # 用于标记数据日期
+    Today_str3 = datetime.now().strftime('%Y%m%d')
+
     """解析水库/船闸数据"""
     soup = BeautifulSoup(html_content, 'html.parser')
     
@@ -1390,7 +1399,8 @@ def parse_reservoir_data(html_content, publish_date):
                                 '上游水位': upstream_level,
                                 '入库流量': inflow,
                                 '出库流量': outflow,
-                                '是否放水': is_releasing
+                                '是否放水': is_releasing,
+                                '数据日期': Today_str3
                             }
                 break
         if table_found:
@@ -1423,218 +1433,244 @@ def main():
     print("开始爬取早八点水情及水库数据...")
     print("=" * 60)
 
-    # 设置请求头，模拟浏览器访问
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
+    # 检查今天的早八点数据是否已经全部爬取完毕
+    today_tag = datetime.now().strftime('%y%m%d')
+    skip_am8_crawl = False
+    existing_historical = load_data()
+    if existing_historical:
+        latest_record = existing_historical[-1]
+        # 检查最新记录中梧州、长洲船闸、大藤峡枢纽、贵港枢纽的"数据日期"是否都等于今天
+        check_items = [
+            latest_record.get('站点数据', {}).get('梧州', {}),
+            latest_record.get('枢纽数据', {}).get('长洲船闸', {}),
+            latest_record.get('枢纽数据', {}).get('大藤峡枢纽', {}),
+            latest_record.get('枢纽数据', {}).get('贵港枢纽', {}),
+        ]
+        all_today = all(item.get('数据日期') == today_tag for item in check_items)
+        if all_today:
+            skip_am8_crawl = True
+            print(f"今天的早八点数据已全部爬取完毕（数据日期: {today_tag}），跳过爬取")
 
-    # 访问目标网站
-    print("正在打开网站...")
-    base_url = "https://www.gxghj.cn/c/fw/slcx"
-    try:
-        response = requests.get(base_url, headers=headers, timeout=30)
-        response.encoding = 'utf-8'
-        print(f"网站访问成功，状态码: {response.status_code}")
-    except Exception as e:
-        print(f"访问网站失败: {e}")
+    if not skip_am8_crawl:
+        # 设置请求头，模拟浏览器访问
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
 
-    # 解析列表页HTML
-    soup = BeautifulSoup(response.text, 'html.parser')
-
-    # 获取所有新闻链接
-    news_items = soup.select('.newsList li')
-
-    # 获取今天的日期字符串，格式如 "20261012"
-    today_str = datetime.now().strftime('%Y%m%d')
-
-    #today_str = "20261101"  # 测试用
-
-    # 筛选标题中包含今天日期的链接
-    filtered_items = []
-    for item in news_items:
-        title_tag = item.select_one('.newsTitle')
-        if title_tag:
-            title_text = title_tag.get_text(strip=True)
-            if today_str in title_text:
-                filtered_items.append(item)
-
-    print(f"找到 {len(news_items)} 条新闻，筛选出包含今天日期({today_str})的 {len(filtered_items)} 条")
-
-    # 使用字典存储所有数据，站名为键
-    all_water_data = {}
-
-    # 使用字典存储水库数据，枢纽名为键
-    all_reservoir_data = {}
-
-    for i, news_item in enumerate(filtered_items):
-
-        # 获取链接标题和URL
-        title_tag = news_item.select_one('.newsTitle')
-        link_tag = news_item.select_one('a')
-
-        if not title_tag or not link_tag:
-            continue
-
-        link_title = title_tag.get_text(strip=True)
-        link_url = link_tag.get('href')
-
-        # 处理相对URL
-        if link_url.startswith('/'):
-            link_url = f"https://www.gxghj.cn{link_url}"
-        elif not link_url.startswith('http'):
-            link_url = f"https://www.gxghj.cn/c/fw/slcx/{link_url}"
-
-        print(f"\n{'='*50}")
-        print(f"正在处理第 {i+1} 条链接: {link_title}")
-        print(f"{'='*50}")
-
-        # 访问详情页
+        # 访问目标网站
+        print("正在打开网站...")
+        base_url = "https://www.gxghj.cn/c/fw/slcx"
         try:
-            detail_response = requests.get(link_url, headers=headers, timeout=30)
-            detail_response.encoding = 'utf-8'
-            print(f"详情页访问成功，状态码: {detail_response.status_code}")
+            response = requests.get(base_url, headers=headers, timeout=30)
+            response.encoding = 'utf-8'
+            print(f"网站访问成功，状态码: {response.status_code}")
         except Exception as e:
-            print(f"访问详情页失败: {e}")
-            continue
+            print(f"访问网站失败: {e}")
 
-        # 解析详情页HTML
-        detail_soup = BeautifulSoup(detail_response.text, 'html.parser')
+        # 解析列表页HTML
+        soup = BeautifulSoup(response.text, 'html.parser')
 
-        # 获取发布日期
-        info_tag = detail_soup.select_one('.info')
-        if info_tag:
-            publish_date_info = info_tag.get_text()
-            date_match = re.search(r'发布日期：(\d{4}-\d{2}-\d{2})', publish_date_info)
-            if date_match:
-                publish_date = date_match.group(1)
+        # 获取所有新闻链接
+        news_items = soup.select('.newsList li')
+
+        # 获取今天的日期字符串，格式如 "20261012"
+        today_str = datetime.now().strftime('%Y%m%d')
+
+        #today_str = "20261101"  # 测试用
+
+        # 筛选标题中包含今天日期的链接
+        filtered_items = []
+        for item in news_items:
+            title_tag = item.select_one('.newsTitle')
+            if title_tag:
+                title_text = title_tag.get_text(strip=True)
+                if today_str in title_text:
+                    filtered_items.append(item)
+
+        print(f"找到 {len(news_items)} 条新闻，筛选出包含今天日期({today_str})的 {len(filtered_items)} 条")
+
+        # 使用字典存储所有数据，站名为键
+        all_water_data = {}
+
+        # 使用字典存储水库数据，枢纽名为键
+        all_reservoir_data = {}
+
+        for i, news_item in enumerate(filtered_items):
+
+            # 获取链接标题和URL
+            title_tag = news_item.select_one('.newsTitle')
+            link_tag = news_item.select_one('a')
+
+            if not title_tag or not link_tag:
+                continue
+
+            link_title = title_tag.get_text(strip=True)
+            link_url = link_tag.get('href')
+
+            # 处理相对URL
+            if link_url.startswith('/'):
+                link_url = f"https://www.gxghj.cn{link_url}"
+            elif not link_url.startswith('http'):
+                link_url = f"https://www.gxghj.cn/c/fw/slcx/{link_url}"
+
+            print(f"\n{'='*50}")
+            print(f"正在处理第 {i+1} 条链接: {link_title}")
+            print(f"{'='*50}")
+
+            # 访问详情页
+            try:
+                detail_response = requests.get(link_url, headers=headers, timeout=30)
+                detail_response.encoding = 'utf-8'
+                print(f"详情页访问成功，状态码: {detail_response.status_code}")
+            except Exception as e:
+                print(f"访问详情页失败: {e}")
+                continue
+
+            # 解析详情页HTML
+            detail_soup = BeautifulSoup(detail_response.text, 'html.parser')
+
+            # 获取发布日期
+            info_tag = detail_soup.select_one('.info')
+            if info_tag:
+                publish_date_info = info_tag.get_text()
+                date_match = re.search(r'发布日期：(\d{4}-\d{2}-\d{2})', publish_date_info)
+                if date_match:
+                    publish_date = date_match.group(1)
+                else:
+                    publish_date = "未知日期"
             else:
                 publish_date = "未知日期"
-        else:
-            publish_date = "未知日期"
 
-        print(f"发布日期: {publish_date}")
+            print(f"发布日期: {publish_date}")
 
-        # 如果是贵港的水情信息页面，页面内容是图片，下载并重命名
-        if '贵港' in link_title:
-            content_div = detail_soup.select_one('.content.html')
-            if content_div:
-                img_tag = content_div.find('img')
-                if img_tag:
-                    img_src = img_tag.get('src', '')
-                    if img_src:
-                        # 处理相对URL
-                        if img_src.startswith('/'):
-                            img_url = f"https://www.gxghj.cn{img_src}"
-                        elif not img_src.startswith('http'):
-                            img_url = f"https://www.gxghj.cn/{img_src}"
-                        else:
-                            img_url = img_src
+            # 如果是贵港的水情信息页面，页面内容是图片，下载并重命名
+            if '贵港' in link_title:
+                content_div = detail_soup.select_one('.content.html')
+                if content_div:
+                    img_tag = content_div.find('img')
+                    if img_tag:
+                        img_src = img_tag.get('src', '')
+                        if img_src:
+                            # 处理相对URL
+                            if img_src.startswith('/'):
+                                img_url = f"https://www.gxghj.cn{img_src}"
+                            elif not img_src.startswith('http'):
+                                img_url = f"https://www.gxghj.cn/{img_src}"
+                            else:
+                                img_url = img_src
 
-                        # 获取图片扩展名
-                        img_ext = os.path.splitext(img_src)[1] or '.png'
+                            # 获取图片扩展名
+                            img_ext = os.path.splitext(img_src)[1] or '.png'
 
-                        # 修改文件名
-                        img_filename = f"guigang{img_ext}"
+                            # 修改文件名
+                            img_filename = f"guigang{img_ext}"
 
-                        try:
-                            img_response = requests.get(img_url, headers=headers, timeout=30)
-                            with open(os.path.join(get_app_dir(), img_filename), 'wb') as f:
-                                f.write(img_response.content)
-                            print(f"已下载贵港水情图片: {img_filename}")
+                            try:
+                                img_response = requests.get(img_url, headers=headers, timeout=30)
+                                with open(os.path.join(get_app_dir(), img_filename), 'wb') as f:
+                                    f.write(img_response.content)
+                                print(f"已下载贵港水情图片: {img_filename}")
 
-                            # 对下载的图片进行OCR识别
-                            print("正在进行OCR识别...")
-                            ocr_result = ocr_image(img_filename)
-                            print(f"OCR结果: {ocr_result}")
+                                # 对下载的图片进行OCR识别
+                                print("正在进行OCR识别...")
+                                ocr_result = ocr_image(img_filename)
+                                print(f"OCR结果: {ocr_result}")
 
-                            # 从OCR结果中解析贵港枢纽和大藤峡枢纽数据
-                            ocr_reservoir_data = parse_ocr_reservoir_data(ocr_result, publish_date)
-                            all_reservoir_data.update(ocr_reservoir_data)
-                        except Exception as e:
-                            print(f"下载贵港水情图片失败: {e}")
+                                # 从OCR结果中解析贵港枢纽和大藤峡枢纽数据
+                                ocr_reservoir_data = parse_ocr_reservoir_data(ocr_result, publish_date)
+                                all_reservoir_data.update(ocr_reservoir_data)
+                            except Exception as e:
+                                print(f"下载贵港水情图片失败: {e}")
 
-        # 解析水位数据
-        water_data = parse_water_level_data(detail_response.text, publish_date)
-        # 合并到总数据中，重复站点会自动覆盖
-        all_water_data.update(water_data)
+            # 解析水位数据
+            water_data = parse_water_level_data(detail_response.text, publish_date)
+            # 合并到总数据中，重复站点会自动覆盖
+            all_water_data.update(water_data)
 
-        # 解析水库/船闸数据
-        reservoir_data = parse_reservoir_data(detail_response.text, publish_date)
-        # 合并到水库数据中，重复枢纽会自动覆盖
-        all_reservoir_data.update(reservoir_data)
+            # 解析水库/船闸数据
+            reservoir_data = parse_reservoir_data(detail_response.text, publish_date)
+            # 合并到水库数据中，重复枢纽会自动覆盖
+            all_reservoir_data.update(reservoir_data)
 
-        print(f"本次获取水位数据: {len(water_data)} 个站点")
-        print(f"本次获取水库数据: {len(reservoir_data)} 个枢纽")
+            print(f"本次获取水位数据: {len(water_data)} 个站点")
+            print(f"本次获取水库数据: {len(reservoir_data)} 个枢纽")
 
-        # 短暂延迟，避免请求过快
-        time.sleep(1)
+            # 短暂延迟，避免请求过快
+            time.sleep(1)
 
-    # 输出所有爬取的数据
-    print("\n")
-    print("=" * 60)
-    print("梧州早八点水位数据")
-    print("=" * 60)
+        # 输出所有爬取的数据
+        print("\n")
+        print("=" * 60)
+        print("梧州早八点水位数据")
+        print("=" * 60)
 
-    for station_name in sorted(all_water_data.keys()):
-        data = all_water_data[station_name]
-        change_desc = "上升" if data['变化'] == 1 else "持平或下降"
-        print(f"站名: {data['站名']}")
-        print(f"水位: {data['水位']} 米")
-        print(f"变化: {data['变化']} ({change_desc})")
-        print(f"变化值: {data['变化值']}")
-        print(f"情况: {data['情况']}")
-        print(f"颜色: {data['颜色']}")
-        print(f"时间: {data['时间']}")
-        print("-" * 60)
+        for station_name in sorted(all_water_data.keys()):
+            data = all_water_data[station_name]
+            change_desc = "上升" if data['变化'] == 1 else "持平或下降"
+            print(f"站名: {data['站名']}")
+            print(f"水位: {data['水位']} 米")
+            print(f"变化: {data['变化']} ({change_desc})")
+            print(f"变化值: {data['变化值']}")
+            print(f"情况: {data['情况']}")
+            print(f"颜色: {data['颜色']}")
+            print(f"时间: {data['时间']}")
+            print("-" * 60)
 
-    # 输出所有爬取的水库数据
-    print("\n")
-    print("=" * 60)
-    print("水库船闸数据汇总")
-    print("=" * 60)
+        # 输出所有爬取的水库数据
+        print("\n")
+        print("=" * 60)
+        print("水库船闸数据汇总")
+        print("=" * 60)
 
-    for reservoir_name in sorted(all_reservoir_data.keys()):
-        data = all_reservoir_data[reservoir_name]
-        releasing_status = "放水中" if data['是否放水'] == 1 else "未放水"
-        print(f"站名: {data['站名']}")
-        print(f"时间: {data['时间']}")
-        print(f"上游水位: {data['上游水位']} 米")
-        print(f"入库流量: {data['入库流量']} m³/s")
-        print(f"出库流量: {data['出库流量']} m³/s")
-        print(f"是否放水: {data['是否放水']} ({releasing_status})")
-        print("-" * 60)
+        for reservoir_name in sorted(all_reservoir_data.keys()):
+            data = all_reservoir_data[reservoir_name]
+            releasing_status = "放水中" if data['是否放水'] == 1 else "未放水"
+            print(f"站名: {data['站名']}")
+            print(f"时间: {data['时间']}")
+            print(f"上游水位: {data['上游水位']} 米")
+            print(f"入库流量: {data['入库流量']} m³/s")
+            print(f"出库流量: {data['出库流量']} m³/s")
+            print(f"是否放水: {data['是否放水']} ({releasing_status})")
+            print("-" * 60)
 
     # 加载历史数据
     print("\n正在加载历史数据...")
     historical_data = load_data()
 
-    # 检查是否已存在相同时间的数据
-    new_data_time = list(all_water_data.values())[0]['时间'] if all_water_data else None
-    existing_index = -1
-    if new_data_time:
-        for i, record in enumerate(historical_data):
-            if record['时间'] == new_data_time:
-                existing_index = i
-                break
+    if not skip_am8_crawl:
+        # 检查是否已存在相同时间的数据
+        new_data_time = list(all_water_data.values())[0]['时间'] if all_water_data else None
+        existing_index = -1
+        if new_data_time:
+            for i, record in enumerate(historical_data):
+                if record['时间'] == new_data_time:
+                    existing_index = i
+                    break
 
-    # 添加或更新数据
-    if new_data_time:
-        record_data = {
-            '时间': new_data_time,
-            '站点数据': all_water_data,
-            '枢纽数据': all_reservoir_data,
-        }
+        # 添加或更新数据
+        if new_data_time:
+            # 生成数据日期标识（格式如 261127）
+            data_date_tag = datetime.now().strftime('%y%m%d')
 
-        if existing_index >= 0:
-            print(f"更新时间 {new_data_time} 的数据")
-            historical_data[existing_index] = record_data
-        else:
-            print(f"添加新的时间数据: {new_data_time}")
-            historical_data.append(record_data)
+            record_data = {
+                '时间': new_data_time,
+                '数据日期': data_date_tag,
+                '站点数据': all_water_data,
+                '枢纽数据': all_reservoir_data,
+            }
 
-    # 保存数据
-    save_data(historical_data)
-    print(f"数据已保存，当前共有 {len(historical_data)} 条记录")
+            if existing_index >= 0:
+                print(f"更新时间 {new_data_time} 的数据")
+                historical_data[existing_index] = record_data
+            else:
+                print(f"添加新的时间数据: {new_data_time}")
+                historical_data.append(record_data)
+
+        # 保存数据
+        save_data(historical_data)
+        print(f"数据已保存，当前共有 {len(historical_data)} 条记录")
+    else:
+        print("跳过早八点数据保存（今天已爬取完毕）")
 
     # 生成HTML报告
     print("\n正在生成HTML可视化报告...")
